@@ -762,21 +762,14 @@ const ui = {
         const callBtn = document.getElementById('callPhoneBtn');
         const copyBtn = document.getElementById('copyPhoneBtn');
         
-        if (isAdmin) {
-            phoneEl.textContent = booking.phoneNumber; 
-            callBtn.style.display = 'inline-block';
-            copyBtn.style.display = 'inline-block';
-            callBtn.href = `tel:${booking.phoneNumber}`; 
-            copyBtn.onclick = () => { 
-                navigator.clipboard.writeText(booking.phoneNumber).then(() => { utils.showToast('Număr copiat!'); }); 
-            };
-        } else {
-            const p = booking.phoneNumber;
-            const masked = (p.length >= 10) ? `${p.slice(0,4)}****${p.slice(-2)}` : '******';
-            phoneEl.textContent = masked;
-            callBtn.style.display = 'none';
-            copyBtn.style.display = 'none';
-        }
+        // Telefon vizibil pentru toată lumea
+        phoneEl.textContent = booking.phoneNumber; 
+        callBtn.style.display = 'inline-block';
+        copyBtn.style.display = 'inline-block';
+        callBtn.href = `tel:${booking.phoneNumber}`; 
+        copyBtn.onclick = () => { 
+            navigator.clipboard.writeText(booking.phoneNumber).then(() => { utils.showToast('Număr copiat!'); }); 
+        };
 
         document.getElementById('adminModal').style.display = 'none'; 
         document.getElementById('confirmModal').style.display = 'none';
