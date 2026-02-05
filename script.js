@@ -2,10 +2,11 @@
 // 1. IMPORTURI FIREBASE
 // ------------------------------------------------------------------
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, query, orderBy, where, runTransaction, writeBatch, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 // ------------------------------------------------------------------
-// 2. CONFIGURARE (Datele Tale)
+// 2. CONFIGURARE
 // ------------------------------------------------------------------
 const firebaseConfig = {
   apiKey: "AIzaSyA3uDKfPBvMfuqTk3Z1tLyLOwP40zFtohs",
@@ -16,9 +17,14 @@ const firebaseConfig = {
   appId: "1:899577919587:web:7e32821c02144ce61a6056"
 };
 
-// Inițializare aplicație
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+let auth = null;
+try {
+    auth = getAuth(app);
+} catch (e) {
+    console.warn("Auth initialization failed:", e);
+}
 const bookingsCollection = collection(db, "rezervari");
 
 // ------------------------------------------------------------------
@@ -26,19 +32,12 @@ const bookingsCollection = collection(db, "rezervari");
 // ------------------------------------------------------------------
 
 let localBookings = [];
+let historyBookings = []; 
 let deleteId = null;
 let isAdmin = false;
-
-// HASH PAROLA: P20adminsup34
-const ADMIN_HASH = '541a120b1cc8b470e8ff181003f923704512d6dfc00c3eee5ea02b626db9f174';
+let adminViewMode = 'active';
 
 const utils = {
-    async sha256(message) {
-        const msgBuffer = new TextEncoder().encode(message);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    },
     showToast(message, type = 'success') {
         const toast = document.getElementById('toast');
         if (toast) {
@@ -51,7 +50,6 @@ const utils = {
     },
     formatDateRO(dateStr) {
         const options = { weekday: 'long', day: 'numeric', month: 'long' };
-        // Adaugam T12:00:00 pentru a evita probleme de timezone
         return new Date(dateStr + 'T12:00:00').toLocaleDateString('ro-RO', options);
     },
     timeToMins(time) { 
@@ -65,7 +63,11 @@ const utils = {
         if (h >= 24) h = h - 24; 
         return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`; 
     },
-    
+    addDays(dateStr, days) {
+        const date = new Date(dateStr);
+        date.setDate(date.getDate() + days);
+        return date.toISOString().split('T')[0];
+    },
     capitalize(str) {
         if (!str) return '';
         return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
@@ -75,7 +77,6 @@ const utils = {
 const logic = {
     machines: { 'masina1': 'Mașină Spălat 1', 'masina2': 'Mașină Spălat 2', 'uscator1': 'Uscător 1', 'uscator2': 'Uscător 2' },
     
-    // Generăm sloturi de 30 minute pentru vizualizare 24h
     generateSlots(startHour = 0, endHour = 24) {
         const slots = [];
         for (let h = startHour; h < endHour; h++) { 
@@ -86,22 +87,39 @@ const logic = {
     },
 
     isSlotFree(machine, date, start, duration) {
-        const bookings = localBookings.filter(b => b.machineType === machine && b.date === date);
+        const sameDayBookings = localBookings.filter(b => b.machineType === machine && b.date === date);
         const reqStart = utils.timeToMins(start);
         const reqEnd = reqStart + parseInt(duration);
         
-        return !bookings.some(b => {
+        const overlapSameDay = sameDayBookings.some(b => {
             const bStart = utils.timeToMins(b.startTime);
             const bEnd = bStart + parseInt(b.duration);
             return (reqStart < bEnd && reqEnd > bStart);
         });
+
+        if (overlapSameDay) return false;
+
+        const prevDate = utils.addDays(date, -1);
+        const prevDayBookings = localBookings.filter(b => b.machineType === machine && b.date === prevDate);
+        
+        const overlapPrevDay = prevDayBookings.some(b => {
+            const bStart = utils.timeToMins(b.startTime);
+            const bDuration = parseInt(b.duration);
+            const bEndTotal = bStart + bDuration; 
+            
+            if (bEndTotal > 1440) { 
+                const spillEnd = bEndTotal - 1440; 
+                return reqStart < spillEnd;
+            }
+            return false;
+        });
+
+        return !overlapPrevDay;
     },
 
     canUserBook(userName) {
-        // --- MODIFICARE AICI: Limita schimbată la 4 ---
-        const limit = 4; 
+        const limit = 2; 
         const today = new Date().toISOString().split('T')[0];
-        // Numaram doar rezervarile active (de azi inainte)
         const userBookings = localBookings.filter(b => 
             b.userName.toLowerCase() === userName.toLowerCase() && b.date >= today
         );
@@ -115,23 +133,67 @@ const ui = {
     init() {
         this.setupEventListeners();
         
+        // --- 1. FEATURE: AUTO-FILL (Ține-mă minte) ---
+        const savedName = localStorage.getItem('studentName');
+        const savedPhone = localStorage.getItem('studentPhone');
+        if (savedName) {
+            const nameInput = document.getElementById('userName');
+            if(nameInput) nameInput.value = savedName;
+        }
+        if (savedPhone) {
+            const phoneInput = document.getElementById('phoneNumber');
+            if(phoneInput) phoneInput.value = savedPhone;
+        }
+
+        if(auth) this.setupAuthListener();
+        
+        // Safety Timeout Loader
+        setTimeout(() => {
+            const loader = document.getElementById('appLoader');
+            if(loader && loader.style.display !== 'none') {
+                const text = document.getElementById('loaderText');
+                if(text) text.textContent = "Conexiunea durează mult...";
+                const btn = document.getElementById('reloadBtn');
+                if(btn) {
+                    btn.style.display = 'inline-block';
+                    btn.onclick = () => window.location.reload();
+                }
+            }
+        }, 5000);
+
+        // Theme Init
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark') {
+            document.body.classList.add('dark-mode');
+            const themeIcon = document.querySelector('#themeToggleBtn i');
+            if(themeIcon) themeIcon.className = 'fa-solid fa-sun';
+        }
+
         const dateInput = document.getElementById('bookingDate');
         const today = new Date().toISOString().split('T')[0];
         dateInput.min = today;
         dateInput.value = this.currentDate;
         
         this.updateDateDisplay();
-        
-        // --- VERIFICARE MIEZUL NOPȚII ---
         this.startMidnightWatcher();
 
-        // Calculam data de ieri pentru a incarca doar rezervarile recente
+        // Firebase Listeners (Optimized)
         const d = new Date(); 
         d.setDate(d.getDate() - 1); 
         const yesterday = d.toISOString().split('T')[0];
+        
+        const dNext = new Date();
+        dNext.setDate(dNext.getDate() + 7);
+        const nextWeek = dNext.toISOString().split('T')[0];
 
-        // 1. ASCULTARE REZERVARI
-        const q = query(bookingsCollection, where("date", ">=", yesterday), orderBy("date"), orderBy("startTime"));
+        const q = query(
+            bookingsCollection, 
+            where("date", ">=", yesterday), 
+            where("date", "<=", nextWeek),
+            orderBy("date"), 
+            orderBy("startTime")
+        );
+        
         onSnapshot(q, (snapshot) => {
             localBookings = [];
             snapshot.docs.forEach(doc => localBookings.push({ ...doc.data(), id: doc.id }));
@@ -143,22 +205,33 @@ const ui = {
             }
 
             this.renderAll();
+            // Dacă avem date salvate, randăm rezervările utilizatorului
+            if(localStorage.getItem('studentName')) this.renderMyBookings();
+            
         }, (error) => { 
-            console.error("Eroare Firebase:", error); 
-            utils.showToast("Eroare conectare. Reîncarcă pagina.", "error"); 
+            console.error("Eroare Firebase (fallback activat):", error);
+            const qFallback = query(bookingsCollection, where("date", ">=", yesterday), orderBy("date"));
+            onSnapshot(qFallback, (snap) => {
+                 localBookings = [];
+                 snap.docs.forEach(doc => localBookings.push({ ...doc.data(), id: doc.id }));
+                 this.renderAll();
+                 const loader = document.getElementById('appLoader');
+                 if(loader) {
+                    loader.style.opacity = '0';
+                    setTimeout(() => loader.style.display = 'none', 500);
+                 }
+            });
         });
 
-        // 2. ASCULTARE SETARI (MENTENANTA)
+        // Maintenance Listener
         onSnapshot(doc(db, "settings", "appState"), (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 const maintenanceMode = data.maintenance || false;
                 
-                // Actualizam Switch-ul din admin panel
-                document.getElementById('maintenanceToggle').checked = maintenanceMode;
+                const toggle = document.getElementById('maintenanceToggle');
+                if(toggle) toggle.checked = maintenanceMode;
                 
-                // Aratam/Ascundem overlay-ul
-                // Daca e mentenanta SI nu suntem logati ca admin, blocam ecranul
                 const overlay = document.getElementById('maintenanceOverlay');
                 if (maintenanceMode && !isAdmin) {
                     overlay.style.display = 'flex';
@@ -169,17 +242,12 @@ const ui = {
         });
     },
 
-    // Funcția care verifică fiecare minut dacă data s-a schimbat
     startMidnightWatcher() {
         setInterval(() => {
             const realToday = new Date().toISOString().split('T')[0];
             const dateInput = document.getElementById('bookingDate');
-            
-            // Dacă data minimă (azi) nu mai corespunde cu realitatea
             if (dateInput.min !== realToday) {
                 dateInput.min = realToday;
-                
-                // Dacă utilizatorul era pe ziua de "ieri", îl mutăm pe "azi"
                 if (this.currentDate < realToday) {
                     this.currentDate = realToday;
                     dateInput.value = realToday;
@@ -188,7 +256,7 @@ const ui = {
                     utils.showToast('Zi nouă! Calendarul s-a actualizat.');
                 }
             }
-        }, 60000); // 60000 ms = 1 minut
+        }, 60000);
     },
 
     setupEventListeners() {
@@ -197,7 +265,6 @@ const ui = {
         document.getElementById('prevDay').onclick = () => this.changeDate(-1);
         document.getElementById('nextDay').onclick = () => this.changeDate(1);
         
-        // Verificare vizuală la schimbarea orei manuale
         const timeInput = document.getElementById('startTime');
         if (timeInput) {
             timeInput.addEventListener('change', () => {
@@ -227,6 +294,18 @@ const ui = {
              document.getElementById('startTime').style.borderColor = 'var(--border)';
         };
 
+        // Visual Selector
+        document.querySelectorAll('.selector-card').forEach(card => {
+            card.onclick = () => {
+                document.querySelectorAll('.selector-card').forEach(c => c.classList.remove('selected'));
+                card.classList.add('selected');
+                const value = card.dataset.value;
+                const select = document.getElementById('machineType');
+                select.value = value;
+                select.dispatchEvent(new Event('change'));
+            };
+        });
+
         document.getElementById('userName').oninput = () => this.renderMyBookings();
         
         document.querySelectorAll('.modal-close').forEach(btn => btn.onclick = () => {
@@ -235,21 +314,25 @@ const ui = {
             document.getElementById('adminModal').style.display = 'none';
         });
 
-        // Admin Maintenance Toggle
+        // Maintenance Toggle
         document.getElementById('maintenanceToggle').onchange = async (e) => {
             const isChecked = e.target.checked;
+            const statusLabel = document.getElementById('maintenanceStatusLabel');
+            if(statusLabel) {
+               statusLabel.textContent = isChecked ? "Sistem Offline (Mentenanță)" : "Sistem Online";
+               if(isChecked) statusLabel.classList.add('offline'); else statusLabel.classList.remove('offline');
+            }
+
             try {
-                // Salvam starea in baza de date 'settings/appState'
                 await setDoc(doc(db, "settings", "appState"), { maintenance: isChecked });
                 utils.showToast(isChecked ? "Mentenanță ACTIVATĂ" : "Mentenanță DEZACTIVATĂ");
             } catch (err) {
                 console.error(err);
                 utils.showToast("Eroare la salvarea setării.", "error");
-                e.target.checked = !isChecked; // Revert switch on error
+                e.target.checked = !isChecked;
             }
         };
 
-        // Butonul secret de pe ecranul de mentenanta
         document.getElementById('maintenanceAdminBtn').onclick = () => {
              document.getElementById('modalOverlay').style.display = 'flex';
              document.getElementById('adminModal').style.display = 'block';
@@ -257,6 +340,92 @@ const ui = {
              document.getElementById('confirmModal').style.display = 'none';
         };
         
+        const themeBtn = document.getElementById('themeToggleBtn');
+        if(themeBtn) {
+            themeBtn.onclick = () => {
+                document.body.classList.toggle('dark-mode');
+                const isDark = document.body.classList.contains('dark-mode');
+                localStorage.setItem('theme', isDark ? 'dark' : 'light');
+                const icon = themeBtn.querySelector('i');
+                if(icon) icon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+            };
+        }
+
+        // Admin Search & Tabs
+        document.getElementById('adminSearchInput').addEventListener('input', () => this.renderAdminDashboard());
+        document.getElementById('adminDateFilter').addEventListener('change', () => this.renderAdminDashboard());
+        
+        document.getElementById('tabActive').onclick = () => {
+             adminViewMode = 'active';
+             document.getElementById('tabActive').classList.add('active');
+             document.getElementById('tabHistory').classList.remove('active');
+             document.getElementById('listTitle').textContent = "Rezervări Active";
+             this.renderAdminDashboard();
+        };
+        document.getElementById('tabHistory').onclick = async () => {
+             adminViewMode = 'history';
+             document.getElementById('tabHistory').classList.add('active');
+             document.getElementById('tabActive').classList.remove('active');
+             document.getElementById('listTitle').textContent = "Istoric (Se încarcă...)";
+             
+             try {
+                 const d = new Date(); 
+                 d.setDate(d.getDate() - 1); 
+                 const yesterday = d.toISOString().split('T')[0];
+
+                 const qHistory = query(bookingsCollection, where("date", "<", yesterday), orderBy("date", "desc"), limit(50));
+                 const snap = await getDocs(qHistory);
+                 
+                 historyBookings = [];
+                 snap.docs.forEach(doc => {
+                     historyBookings.push({ ...doc.data(), id: doc.id });
+                 });
+                 
+                 document.getElementById('listTitle').textContent = "Istoric Rezervări";
+                 this.renderAdminDashboard();
+             } catch (e) {
+                 console.error(e);
+                 utils.showToast("Eroare încărcare istoric.", "error");
+             }
+        };
+
+        // --- 2. FEATURE: EXPORT CSV ---
+        const exportBtn = document.getElementById('exportCsvBtn');
+        if (exportBtn) {
+            exportBtn.onclick = () => {
+                const dataToExport = (adminViewMode === 'active') ? localBookings : historyBookings;
+                
+                if (dataToExport.length === 0) {
+                    utils.showToast("Nu sunt date de exportat!", "error");
+                    return;
+                }
+
+                let csvContent = "data:text/csv;charset=utf-8,";
+                csvContent += "Data,Ora,Nume,Telefon,Masina,Durata\n";
+
+                dataToExport.forEach(row => {
+                    const rowData = [
+                        row.date,
+                        row.startTime,
+                        row.userName,
+                        row.phoneNumber,
+                        logic.machines[row.machineType],
+                        row.duration
+                    ];
+                    csvContent += rowData.join(",") + "\n";
+                });
+
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `raport_${adminViewMode}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+        }
+
+        // Delete handlers
         const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
         if(cancelDeleteBtn) cancelDeleteBtn.onclick = () => {
             document.getElementById('modalOverlay').style.display = 'none';
@@ -269,7 +438,10 @@ const ui = {
             if (deleteId) {
                 try {
                     await deleteDoc(doc(db, "rezervari", deleteId));
+                    localBookings = localBookings.filter(b => b.id !== deleteId);
+                    historyBookings = historyBookings.filter(b => b.id !== deleteId);
                     utils.showToast('Rezervare ștearsă.');
+                    this.renderAdminDashboard();
                 } catch (e) {
                     console.error(e);
                     utils.showToast('Eroare la ștergere', 'error');
@@ -281,25 +453,45 @@ const ui = {
         };
 
         document.getElementById('adminToggleBtn').onclick = () => { 
-            document.getElementById('modalOverlay').style.display = 'flex'; 
-            document.getElementById('phoneModal').style.display = 'none'; 
+            document.getElementById('phoneModal').style.display = 'none';
             document.getElementById('confirmModal').style.display = 'none';
-            document.getElementById('adminModal').style.display = 'block'; 
+            document.getElementById('modalOverlay').style.display = 'flex'; 
+            document.getElementById('adminModal').style.display = 'block';
         };
         document.getElementById('adminLoginBtn').onclick = this.handleAdminLogin.bind(this);
         document.getElementById('adminLogoutBtn').onclick = () => { 
-            isAdmin = false;
-            document.getElementById('adminContent').style.display = 'none'; 
-            document.getElementById('adminLoginForm').style.display = 'block'; 
-            document.getElementById('adminPassword').value = ''; 
-            
-            // Daca e mentenanta, re-afisam overlay-ul cand face logout
-            const toggle = document.getElementById('maintenanceToggle');
-            if(toggle && toggle.checked) {
-                document.getElementById('maintenanceOverlay').style.display = 'flex';
-                document.getElementById('modalOverlay').style.display = 'none';
-            }
+            signOut(auth).then(() => {
+                utils.showToast("Deconectare reușită");
+            }).catch((error) => {
+                console.error(error);
+            });
         };
+    },
+
+    setupAuthListener() {
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                isAdmin = true;
+                document.body.classList.add('admin-mode');
+                document.getElementById('adminLoginForm').style.display = 'none'; 
+                document.getElementById('adminContent').style.display = 'block'; 
+                document.getElementById('maintenanceOverlay').style.display = 'none';
+                this.renderAdminDashboard();
+                this.cleanupOldBookings();
+            } else {
+                isAdmin = false;
+                document.body.classList.remove('admin-mode');
+                document.getElementById('adminContent').style.display = 'none'; 
+                document.getElementById('adminLoginForm').style.display = 'block'; 
+                document.getElementById('adminPassword').value = ''; 
+                
+                const toggle = document.getElementById('maintenanceToggle');
+                if(toggle && toggle.checked) {
+                    document.getElementById('maintenanceOverlay').style.display = 'flex';
+                    document.getElementById('modalOverlay').style.display = 'none';
+                }
+            }
+        });
     },
 
     changeDate(days) {
@@ -325,81 +517,111 @@ const ui = {
         display.textContent = (this.currentDate === today) ? "Astăzi" : utils.formatDateRO(this.currentDate); 
     },
 
+    // --- 3. HANDLE BOOKING (CORECTAT ȘI OPTIMIZAT) ---
     async handleBooking(e) {
         e.preventDefault();
         const submitBtn = e.target.querySelector('button[type="submit"]');
         const originalBtnText = submitBtn.innerHTML;
         
-        // Dezactivare buton
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;margin:0;display:inline-block;"></div> Procesare...';
+        submitBtn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;margin:0;display:inline-block;"></div> Verificare...';
 
         try {
+            // Definim variabilele LA ÎNCEPUT
             let userName = document.getElementById('userName').value.trim();
             const phone = document.getElementById('phoneNumber').value.trim();
             const machine = document.getElementById('machineType').value;
             const start = document.getElementById('startTime').value;
             const duration = parseInt(document.getElementById('duration').value);
 
-            if (!start) {
-                utils.showToast('Te rog selectează ora!', 'error');
-                return;
-            }
+            // Validări
+            if (!start) throw new Error("Te rog selectează ora!");
+            if (!machine) throw new Error("Alege o mașină!");
+            if (userName.length < 3) throw new Error("Introdu un nume complet (minim 3 litere).");
 
             userName = utils.capitalize(userName);
-
-            // Curatam numarul de telefon
             const cleanPhone = phone.replace(/\D/g, '');
 
-            if (cleanPhone.length !== 10) { 
-                utils.showToast('Număr invalid (10 cifre)', 'error'); 
-                return; 
+            if (cleanPhone.length !== 10 || !cleanPhone.startsWith('07')) { 
+                throw new Error("Număr invalid! Trebuie 10 cifre și să înceapă cu 07.");
             }
             
             if (!logic.canUserBook(userName)) {
-                // --- MODIFICARE AICI: Mesajul de eroare actualizat ---
-                utils.showToast('Ai atins limita de 4 rezervări active!', 'error');
-                return;
+                throw new Error("Ai atins limita de 2 rezervări active!");
             }
 
-            if (!logic.isSlotFree(machine, this.currentDate, start, duration)) { 
-                utils.showToast('Slot ocupat! Verifică orarul.', 'error'); 
-                return; 
+            if (!logic.isSlotFree(machine, this.currentDate, start, duration)) {
+                 throw new Error("Intervalul este deja ocupat (verifica orarul).");
             }
 
-            await addDoc(bookingsCollection, { 
-                userName, 
-                phoneNumber: cleanPhone, 
-                machineType: machine, 
-                date: this.currentDate, 
-                startTime: start, 
-                duration: duration, 
-                createdAt: new Date().toISOString() 
+            // Tranzacție
+            await runTransaction(db, async (transaction) => {
+                const slotID = `${this.currentDate}_${machine}_${start}`;
+                const slotRef = doc(db, "slots_lock", slotID); 
+                
+                const slotDoc = await transaction.get(slotRef);
+                if (slotDoc.exists()) {
+                    throw "Cineva a rezervat acest slot chiar acum!";
+                }
+                
+                transaction.set(slotRef, { 
+                    lockedAt: new Date().toISOString(),
+                    machine,
+                    date: this.currentDate,
+                    start
+                });
+
+                const newBookingRef = doc(collection(db, "rezervari"));
+                transaction.set(newBookingRef, { 
+                    userName, 
+                    phoneNumber: cleanPhone, 
+                    machineType: machine, 
+                    date: this.currentDate, 
+                    startTime: start, 
+                    duration: duration, 
+                    createdAt: new Date().toISOString() 
+                });
             });
-            utils.showToast('Rezervare salvată!');
+
+            // Salvare locală (Ține-mă minte)
+            localStorage.setItem('studentName', userName);
+            localStorage.setItem('studentPhone', cleanPhone);
+
+            utils.showToast('Rezervare salvată cu succes!');
             e.target.reset(); 
+            
+            // Re-umplem câmpurile
             document.getElementById('userName').value = userName; 
             document.getElementById('bookingDate').value = this.currentDate;
             document.getElementById('startTime').style.borderColor = 'var(--border)';
-            // Eliminam selectia vizuala
             document.querySelectorAll('.selected-slot').forEach(el => el.classList.remove('selected-slot'));
             
         } catch (error) { 
             console.error(error); 
-            utils.showToast('Eroare server.', 'error'); 
+            let msg = 'Eroare server.';
+            if (typeof error === 'string') msg = error;
+            else if (error.message) msg = error.message;
+            utils.showToast(msg, 'error'); 
         } finally {
-            // Reactivare buton
             submitBtn.disabled = false;
             submitBtn.innerHTML = originalBtnText;
         }
     },
 
-    renderAll() { this.renderSchedule(); this.renderMyBookings(); this.renderUpcoming(); if (document.getElementById('adminContent').style.display === 'block') { this.renderAdminList(); } },
+    renderAll() { this.renderSchedule(); this.renderMyBookings(); this.renderUpcoming(); if (document.getElementById('adminContent').style.display === 'block') { this.renderAdminDashboard(); } },
 
     renderSchedule() {
         const grid = document.getElementById('scheduleGrid'); grid.innerHTML = '';
         const slots = logic.generateSlots();
-        const bookings = localBookings.filter(b => b.date === this.currentDate);
+        const todaysBookings = localBookings.filter(b => b.date === this.currentDate);
+        const prevDate = utils.addDays(this.currentDate, -1);
+        const spillBookings = localBookings.filter(b => {
+            if (b.date !== prevDate) return false;
+            const end = utils.timeToMins(b.startTime) + parseInt(b.duration);
+            return end > 1440;
+        });
+
+        const allBookings = [...todaysBookings, ...spillBookings];
 
         Object.keys(logic.machines).forEach(machineKey => {
             const col = document.createElement('div'); col.className = 'machine-column';
@@ -410,30 +632,40 @@ const ui = {
                 const slotMins = utils.timeToMins(slot); 
                 const nextSlotMins = slotMins + 30; 
 
-                const booking = bookings.find(b => {
+                const booking = allBookings.find(b => {
                     if (b.machineType !== machineKey) return false;
-                    const bStart = utils.timeToMins(b.startTime);
-                    const bEnd = bStart + parseInt(b.duration);   
+                    let bStart = utils.timeToMins(b.startTime);
+                    let bEnd = bStart + parseInt(b.duration); 
+                    if (b.date === prevDate) { bStart = 0; bEnd = bEnd - 1440; }
                     return (bStart < nextSlotMins && bEnd > slotMins);
                 });
 
                 const div = document.createElement('div'); div.className = `time-slot ${booking ? 'occupied' : 'available'}`;
                 
                 if (booking) {
-                    const bStart = utils.timeToMins(booking.startTime);
-                    const bEnd = bStart + parseInt(booking.duration);
+                    let bStart = utils.timeToMins(booking.startTime);
+                    let bEnd = bStart + parseInt(booking.duration);
+                    let isSpill = false;
+                    if (booking.date === prevDate) { isSpill = true; bStart = 0; bEnd = bEnd - 1440; }
                     
-                    const isStartOfBookingInGrid = (bStart >= slotMins && bStart < nextSlotMins) || (bStart < slotMins && slotMins === 0);
+                    const isStartOfBookingInGrid = (bStart >= slotMins && bStart < nextSlotMins);
 
                     if (bStart >= slotMins) div.classList.add('booking-start'); 
                     if (bEnd <= nextSlotMins) div.classList.add('booking-end'); 
                     if (bStart < slotMins && bEnd > nextSlotMins) div.classList.add('booking-middle');
 
                     if (isStartOfBookingInGrid) { 
-                        const endTime = utils.minsToTime(bEnd); 
-                        div.innerHTML = `<div class="slot-content"><span class="slot-time">${booking.startTime} - ${endTime}</span><span class="slot-name">${booking.userName}</span></div>`; 
+                        let timeText = "";
+                        if (isSpill) {
+                            timeText = `... - ${utils.minsToTime(bEnd)}`;
+                        } else {
+                            const realEnd = bStart + parseInt(booking.duration);
+                            const endStr = realEnd > 1440 ? utils.minsToTime(realEnd - 1440) + " (mâine)" : utils.minsToTime(realEnd);
+                            timeText = `${booking.startTime} - ${endStr}`;
+                        }
+                        div.innerHTML = `<div class="slot-content"><span class="slot-time">${timeText}</span><span class="slot-name">${booking.userName}</span></div>`; 
                     }
-                    div.title = `Rezervat: ${booking.userName} (${booking.startTime})`; 
+                    div.title = `Rezervat: ${booking.userName}`; 
                     div.onclick = () => this.showPhoneModal(booking);
                 } else {
                     div.textContent = slot;
@@ -446,7 +678,6 @@ const ui = {
                         document.querySelector('.booking-card').classList.add('highlight-pulse'); 
                         setTimeout(() => document.querySelector('.booking-card').classList.remove('highlight-pulse'), 1000); 
 
-                        // Visual selection
                         document.querySelectorAll('.selected-slot').forEach(el => el.classList.remove('selected-slot'));
                         e.target.classList.add('selected-slot');
                     };
@@ -498,30 +729,98 @@ const ui = {
     },
 
     async handleAdminLogin() { 
-        const input = document.getElementById('adminPassword').value; 
-        const hash = await utils.sha256(input); 
+        const email = document.getElementById('adminEmail').value;
+        const password = document.getElementById('adminPassword').value; 
         
-        if (hash === ADMIN_HASH) { 
-            isAdmin = true;
-            document.getElementById('adminLoginForm').style.display = 'none'; 
-            document.getElementById('adminContent').style.display = 'block'; 
-            // ASCUNDE MENTENANTA PENTRU ADMIN
-            document.getElementById('maintenanceOverlay').style.display = 'none';
-            this.renderAdminList(); 
-            utils.showToast('Login admin reușit!'); 
-        } else { 
-            utils.showToast('Parolă greșită', 'error'); 
-        } 
+        if (!email || !password) {
+            utils.showToast("Introdu email și parolă", "error");
+            return;
+        }
+
+        try {
+            await signInWithEmailAndPassword(auth, email, password);
+            utils.showToast('Autentificare reușită!'); 
+        } catch (error) {
+            console.error(error);
+            utils.showToast('Email sau parolă greșită', 'error'); 
+        }
     },
 
-    renderAdminList() { 
+    async cleanupOldBookings() {
+        try {
+            const d = new Date();
+            d.setDate(d.getDate() - 30);
+            const cutoffDate = d.toISOString().split('T')[0];
+            const q = query(bookingsCollection, where("date", "<", cutoffDate), limit(50));
+            const snapshot = await getDocs(q);
+            if (!snapshot.empty) {
+                const batch = writeBatch(db);
+                snapshot.docs.forEach(doc => { batch.delete(doc.ref); });
+                await batch.commit();
+                console.log(`[Cleanup] Stearse ${snapshot.size} rezervari vechi.`);
+            }
+        } catch (e) { console.error("[Cleanup Error]", e); }
+    },
+
+    renderAdminDashboard() { 
+        const today = new Date().toISOString().split('T')[0];
+        const todayBookings = localBookings.filter(b => b.date === today).length;
+        const totalActive = localBookings.length;
+        
+        const elToday = document.getElementById('statToday');
+        if(elToday) elToday.textContent = todayBookings;
+        const elTotal = document.getElementById('statTotal');
+        if(elTotal) elTotal.textContent = totalActive;
+        
+        const sourceData = (adminViewMode === 'active') ? localBookings : historyBookings;
+        const searchInput = document.getElementById('adminSearchInput');
+        const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+        const dateInput = document.getElementById('adminDateFilter');
+        const filterDate = dateInput ? dateInput.value : '';
+
+        const filteredData = sourceData.filter(b => {
+            const nameMatch = b.userName.toLowerCase().includes(searchTerm);
+            const phoneMatch = b.phoneNumber.includes(searchTerm);
+            const dateMatch = filterDate ? b.date === filterDate : true;
+            return (nameMatch || phoneMatch) && dateMatch;
+        });
+
+        const elBadge = document.getElementById('listBadgeCount');
+        if(elBadge) elBadge.textContent = filteredData.length;
+
+        const toggle = document.getElementById('maintenanceToggle');
+        const statusLabel = document.getElementById('maintenanceStatusLabel');
+        if(toggle && statusLabel) {
+             const isChecked = toggle.checked;
+             statusLabel.textContent = isChecked ? "Sistem Offline (Mentenanță)" : "Sistem Online";
+             if(isChecked) statusLabel.classList.add('offline'); else statusLabel.classList.remove('offline');
+        }
+
         const list = document.getElementById('adminBookingsList'); 
-        const bookings = [...localBookings].sort((a, b) => b.date.localeCompare(a.date)); 
+        const bookings = [...filteredData].sort((a, b) => {
+             if (adminViewMode === 'history') {
+                 return b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime);
+             } else {
+                 return a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime);
+             }
+        });
+        
         list.innerHTML = bookings.length ? bookings.map(b => {
              const endMins = utils.timeToMins(b.startTime) + parseInt(b.duration);
              const endTime = utils.minsToTime(endMins);
-             return `<div class="booking-item"><div class="booking-info"><strong>${b.userName} (${b.phoneNumber})</strong><span>${b.date} • ${b.startTime} - ${endTime} • ${logic.machines[b.machineType]}</span></div><button class="btn-delete" onclick="window.app.confirmDelete('${b.id}')">Șterge</button></div>`;
-        }).join('') : '<div class="empty-state">Nu sunt rezervări.</div>'; 
+             return `
+             <div class="admin-list-item">
+                <div class="admin-item-info">
+                    <strong>${b.userName}</strong>
+                    <span><i class="fa-solid fa-phone"></i> ${b.phoneNumber}</span>
+                    <span><i class="fa-regular fa-calendar"></i> ${utils.formatDateRO(b.date)} • ${b.startTime}-${endTime}</span>
+                    <span><i class="fa-solid fa-soap"></i> ${logic.machines[b.machineType]}</span>
+                </div>
+                <button class="btn-delete-vip" onclick="window.app.confirmDelete('${b.id}')" title="Șterge">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+             </div>`;
+        }).join('') : '<div class="empty-state">Nu am găsit rezervări conform căutării.</div>'; 
     }
 };
 
