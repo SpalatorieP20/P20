@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+
+<html lang="ro">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Spălătorie Cămin</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+
+    <div id="appLoader" class="app-loader">
+
+        <div class="spinner"></div>
+
+        <p>Se conectează...</p>
+
+    </div>
+
+
+
+    <div id="maintenanceOverlay" class="maintenance-screen" style="display: none;">
+
+        <div class="maintenance-content">
+
+            <i class="fa-solid fa-screwdriver-wrench fa-4x fa-bounce"></i>
+
+            <h1>Mentenanță în Curs</h1>
+
+            <p>Revenim imediat! Facem curățenie în sistem. 🧹</p>
+
+            <p class="maintenance-sub">Ne vedem în câteva minute.</p>
+
+            <button id="maintenanceAdminBtn" class="btn-ghost">Sunt Administrator</button>
+
+        </div>
+
+    </div>
+
+
+
+    <div class="app-container">
+
+        <header class="main-header">
+
+            <div class="header-content">
+
+                <div class="logo-area">
+
+                    <i class="fa-solid fa-soap fa-2x"></i>
+
+                    <div>
+
+                        <h1>Spălătorie Cămin</h1>
+
+                        <p>Rezervări Online Non-Stop</p>
+
+                    </div>
+
+                </div>
+
+                <button id="adminToggleBtn" class="btn-icon-only" title="Admin Login">
+
+                    <i class="fa-solid fa-lock"></i>
+
+                </button>
+
+            </div>
+
+        </header>
+
+
+
+        <main class="main-layout">
+
+            <aside class="sidebar">
+
+                <section class="card booking-card">
+
+                    <div class="card-header">
+
+                        <h2><i class="fa-regular fa-calendar-plus"></i> Rezervare Nouă</h2>
+
+                    </div>
+
+                    <form id="bookingForm">
+
+                        <div class="form-group">
+
+                            <label for="userName">Nume și Cameră</label>
+
+                            <div class="input-wrapper">
+
+                                <i class="fa-solid fa-user"></i>
+
+                                <input type="text" id="userName" required placeholder="Ex: Popescu (304)" autocomplete="off">
+
+                            </div>
+
+                        </div>
+
+
+
+                        <div class="form-group">
+
+                            <label for="phoneNumber">Telefon</label>
+
+                            <div class="input-wrapper">
+
+                                <i class="fa-solid fa-phone"></i>
+
+                                <input type="tel" id="phoneNumber" required placeholder="07xx xxx xxx" maxlength="10">
+
+                            </div>
+
+                        </div>
+
+
+
+                        <div class="form-group">
+
+                            <label for="machineType">Echipament</label>
+
+                            <div class="input-wrapper">
+
+                                <i class="fa-solid fa-plug"></i>
+
+                                <select id="machineType" required>
+
+                                    <option value="">Alege echipamentul...</option>
+
+                                    <option value="masina1">🧺 Mașină de Spălat 1</option>
+
+                                    <option value="masina2">🧺 Mașină de Spălat 2</option>
+
+                                    <option value="uscator1">🌬️ Uscător 1</option>
+
+                                    <option value="uscator2">🌬️ Uscător 2</option>
+
+                                </select>
+
+                            </div>
+
+                        </div>
+
+
+
+                        <div class="form-row">
+
+                            <div class="form-group">
+
+                                <label for="bookingDate">Data</label>
+
+                                <input type="date" id="bookingDate" required>
+
+                            </div>
+
+                            <div class="form-group">
+
+                                <label for="duration">Durată</label>
+
+                                <select id="duration" required>
+
+                                    <option value="60">60 min</option>
+
+                                    <option value="90">90 min</option>
+
+                                </select>
+
+                            </div>
+
+                        </div>
+
+
+
+                        <div class="form-group">
+
+                            <label for="startTime">Ora de început</label>
+
+                            <input type="time" id="startTime" required class="time-input">
+
+                        </div>
+
+
+
+                        <button type="submit" class="btn-primary">
+
+                            <i class="fa-solid fa-check"></i> Rezervă Acum
+
+                        </button>
+
+                    </form>
+
+                </section>
+
+
+
+                <section class="card">
+
+                    <div class="card-header">
+
+                        <h2><i class="fa-solid fa-list-check"></i> Rezervările Mele</h2>
+
+                    </div>
+
+                    <div id="myBookings" class="list-container"></div>
+
+                </section>
+
+                
+
+                <section class="card">
+
+                    <div class="card-header">
+
+                        <h2><i class="fa-solid fa-calendar-week"></i> Zilele Următoare</h2>
+
+                    </div>
+
+                    <div id="upcomingBookings" class="list-container compact"></div>
+
+                </section>
+
+            </aside>
+
+
+
+            <section class="card schedule-container">
+
+                <div class="schedule-header">
+
+                    <h2><i class="fa-regular fa-clock"></i> Orar (24h)</h2>
+
+                    <div class="date-navigator">
+
+                        <button type="button" id="prevDay" class="nav-btn"><i class="fa-solid fa-chevron-left"></i></button>
+
+                        <span id="currentDateDisplay">Azi</span>
+
+                        <button type="button" id="nextDay" class="nav-btn"><i class="fa-solid fa-chevron-right"></i></button>
+
+                    </div>
+
+                </div>
+
+                <div id="scheduleGrid" class="schedule-grid"></div>
+
+            </section>
+
+        </main>
+
+        
+
+        <footer class="app-footer">
+
+            <p>&copy; 2026 Spalatorie Cămin.</p>
+
+        </footer>
+
+    </div>
+
+
+
+    <div id="modalOverlay" class="modal-overlay">
+
+        <div id="phoneModal" class="modal-box">
+
+            <button class="modal-close">&times;</button>
+
+            <h3><i class="fa-solid fa-address-card"></i> Contact</h3>
+
+            <div class="modal-body text-center">
+
+                <h4 id="modalUserName">Nume</h4>
+
+                <p id="modalPhoneNumber" class="phone-display">07xx...</p>
+
+                <div class="modal-actions">
+
+                    <a id="callPhoneBtn" href="#" class="btn-action call"><i class="fa-solid fa-phone"></i> Apelează</a>
+
+                    <button id="copyPhoneBtn" class="btn-action copy"><i class="fa-solid fa-copy"></i> Copiază</button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+        <div id="confirmModal" class="modal-box" style="display: none;">
+
+            <h3><i class="fa-solid fa-triangle-exclamation"></i> Confirmare</h3>
+
+            <p>Ești sigur că vrei să ștergi această rezervare?</p>
+
+            <div class="modal-actions">
+
+                <button id="cancelDeleteBtn" class="btn-action secondary">Nu, renunț</button>
+
+                <button id="confirmDeleteBtn" class="btn-action delete">Da, șterge</button>
+
+            </div>
+
+        </div>
+
+
+
+        <div id="adminModal" class="modal-box">
+
+            <button class="modal-close">&times;</button>
+
+            <h3><i class="fa-solid fa-user-shield"></i> Admin</h3>
+
+            <div id="adminLoginForm">
+
+                <input type="password" id="adminPassword" placeholder="Parola Admin" style="margin-bottom: 15px; width: 100%; padding: 10px; border:1px solid #ddd; border-radius:6px;">
+
+                <button id="adminLoginBtn" class="btn-primary">Conectare</button>
+
+            </div>
+
+            
+
+            <div id="adminContent" style="display: none;">
+
+                <div class="admin-panel-section" style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #ffeeba;">
+
+                    <h4 style="margin-bottom: 10px; color: #856404;"><i class="fa-solid fa-traffic-light"></i> Control Mentenanță</h4>
+
+                    <div class="toggle-wrapper">
+
+                        <span>Activează mod mentenanță:</span>
+
+                        <label class="switch">
+
+                            <input type="checkbox" id="maintenanceToggle">
+
+                            <span class="slider round"></span>
+
+                        </label>
+
+                    </div>
+
+                    <small style="color: #666; display: block; margin-top: 5px;">Când este activ, studenții nu pot vedea sau face rezervări.</small>
+
+                </div>
+
+
+
+                <div class="admin-toolbar">
+
+                    <h4>Rezervări Recente</h4>
+
+                    <button id="adminLogoutBtn" class="btn-small">Deconectare</button>
+
+                </div>
+
+                <div id="adminBookingsList" class="admin-list"></div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <div id="toast" class="toast"></div>
+
+
+
+    <script type="module" src="script.js"></script>
+
+</body>
+
+</html>
