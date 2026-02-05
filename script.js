@@ -1,10 +1,10 @@
 // ------------------------------------------------------------------
 // 1. IMPORTURI FIREBASE
 // ------------------------------------------------------------------
+import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, query, orderBy, where, runTransaction, writeBatch, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
 // ------------------------------------------------------------------
 // 2. CONFIGURARE
 // ------------------------------------------------------------------
@@ -19,6 +19,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const analytics = getAnalytics(app);
 let auth = null;
 try {
     auth = getAuth(app);
@@ -587,6 +588,11 @@ const ui = {
             localStorage.setItem('studentName', userName);
             localStorage.setItem('studentPhone', cleanPhone);
 
+            logEvent(analytics, 'rezervare_noua', {
+                masina: machine,
+                durata: duration
+            });
+
             utils.showToast('Rezervare salvată cu succes!');
             e.target.reset(); 
             
@@ -826,3 +832,4 @@ const ui = {
 
 window.app = ui; 
 document.addEventListener('DOMContentLoaded', () => ui.init());
+
