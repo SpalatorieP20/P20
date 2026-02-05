@@ -1,13 +1,10 @@
-// ------------------------------------------------------------------
 // 1. IMPORTURI FIREBASE
-// ------------------------------------------------------------------
 import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, query, orderBy, where, runTransaction, writeBatch, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-// ------------------------------------------------------------------
+
 // 2. CONFIGURARE
-// ------------------------------------------------------------------
 const firebaseConfig = {
   apiKey: "AIzaSyA3uDKfPBvMfuqTk3Z1tLyLOwP40zFtohs",
   authDomain: "spalatoriep20-b123d.firebaseapp.com",
@@ -28,10 +25,7 @@ try {
 }
 const bookingsCollection = collection(db, "rezervari");
 
-// ------------------------------------------------------------------
-// 3. LOGICA APLICATIEI
-// ------------------------------------------------------------------
-
+// 3. LOGICA 
 let localBookings = [];
 let historyBookings = []; 
 let deleteId = null;
@@ -134,7 +128,7 @@ const ui = {
     init() {
         this.setupEventListeners();
         
-        // --- 1. FEATURE: AUTO-FILL (Ține-mă minte) ---
+       //AUTOFILL
         const savedName = localStorage.getItem('studentName');
         const savedPhone = localStorage.getItem('studentPhone');
         if (savedName) {
@@ -148,7 +142,7 @@ const ui = {
 
         if(auth) this.setupAuthListener();
         
-        // Safety Timeout Loader
+        // Timeout
         setTimeout(() => {
             const loader = document.getElementById('appLoader');
             if(loader && loader.style.display !== 'none') {
@@ -162,7 +156,7 @@ const ui = {
             }
         }, 5000);
 
-        // Theme Init
+        
         const savedTheme = localStorage.getItem('theme');
         if (savedTheme === 'dark') {
             document.body.classList.add('dark-mode');
@@ -206,7 +200,7 @@ const ui = {
             }
 
             this.renderAll();
-            // Dacă avem date salvate, randăm rezervările utilizatorului
+           
             if(localStorage.getItem('studentName')) this.renderMyBookings();
             
         }, (error) => { 
@@ -390,7 +384,7 @@ const ui = {
              }
         };
 
-        // --- 2. FEATURE: EXPORT CSV ---
+        // ---EXPORT CSV ---
         const exportBtn = document.getElementById('exportCsvBtn');
         if (exportBtn) {
             exportBtn.onclick = () => {
@@ -426,7 +420,7 @@ const ui = {
             };
         }
 
-        // Delete handlers
+     
         const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
         if(cancelDeleteBtn) cancelDeleteBtn.onclick = () => {
             document.getElementById('modalOverlay').style.display = 'none';
@@ -438,16 +432,16 @@ const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
         if(confirmDeleteBtn) confirmDeleteBtn.onclick = async () => {
             if (deleteId) {
                 try {
-                    // 1. Găsim rezervarea local pentru a-i afla detaliile
+                   
                     const booking = [...localBookings, ...historyBookings].find(b => b.id === deleteId);
                     
                     if (booking) {
-                        // 2. Ștergem Lock-ul (eliberăm slotul în calendar)
+                     
                         const slotID = `${booking.date}_${booking.machineType}_${booking.startTime}`;
                         await deleteDoc(doc(db, "slots_lock", slotID));
                     }
 
-                    // 3. Ștergem Rezervarea
+                  
                     await deleteDoc(doc(db, "rezervari", deleteId));
                     
                     localBookings = localBookings.filter(b => b.id !== deleteId);
@@ -531,7 +525,7 @@ const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
         display.textContent = (this.currentDate === today) ? "Astăzi" : utils.formatDateRO(this.currentDate); 
     },
 
-    // --- 3. HANDLE BOOKING (CORECTAT ȘI OPTIMIZAT) ---
+   
     async handleBooking(e) {
         e.preventDefault();
         const submitBtn = e.target.querySelector('button[type="submit"]');
@@ -541,7 +535,7 @@ const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
         submitBtn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;margin:0;display:inline-block;"></div> Verificare...';
 
         try {
-            // Definim variabilele LA ÎNCEPUT
+            // variabilele 
             let userName = document.getElementById('userName').value.trim();
             const phone = document.getElementById('phoneNumber').value.trim();
             const machine = document.getElementById('machineType').value;
@@ -597,7 +591,7 @@ const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
                 });
             });
 
-            // Salvare locală (Ține-mă minte)
+            // Salvare locală 
             localStorage.setItem('studentName', userName);
             localStorage.setItem('studentPhone', cleanPhone);
 
@@ -845,6 +839,7 @@ const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
 
 window.app = ui; 
 document.addEventListener('DOMContentLoaded', () => ui.init());
+
 
 
 
