@@ -119,7 +119,7 @@ const logic = {
     },
 
     canUserBook(userName) {
-        const limit = 2; 
+        const limit = 4; 
         const today = new Date().toISOString().split('T')[0];
         const userBookings = localBookings.filter(b => 
             b.userName.toLowerCase() === userName.toLowerCase() && b.date >= today
@@ -832,4 +832,5 @@ const ui = {
 
 window.app = ui; 
 document.addEventListener('DOMContentLoaded', () => ui.init());
+
 
