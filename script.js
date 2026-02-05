@@ -438,14 +438,34 @@ const ui = {
         if(confirmDeleteBtn) confirmDeleteBtn.onclick = async () => {
             if (deleteId) {
                 try {
+                // 1. Căutăm rezervarea local ca să știm ce slot să deblocăm
+                    const booking = [...localBookings, ...historyBookings].find(b => b.id === deleteId);
+                    
+                    if (booking) {
+                        // Reconstruim ID-ul lacătului
+                        const slotID = `${booking.date}_${booking.machineType}_${booking.startTime}`;
+                        // Ștergem lacătul (Deblocare slot)
+                        await deleteDoc(doc(db, "slots_lock", slotID));
+                    }
+
+                    // 2. Ștergem rezervarea
                     await deleteDoc(doc(db, "rezervari", deleteId));
+                    
+                    // Curățăm local
                     localBookings = localBookings.filter(b => b.id !== deleteId);
                     historyBookings = historyBookings.filter(b => b.id !== deleteId);
-                    utils.showToast('Rezervare ștearsă.');
+                    
+                    utils.showToast('Rezervare ștearsă și slot eliberat!');
                     this.renderAdminDashboard();
+                    this.renderAll(); // Refresh calendar
                 } catch (e) {
                     console.error(e);
-                    utils.showToast('Eroare la ștergere', 'error');
+                    // Dacă regula de securitate blochează ștergerea (că nu ești admin)
+                    if(e.code === 'permission-denied') {
+                        utils.showToast('Doar administratorul poate șterge!', 'error');
+                    } else {
+                        utils.showToast('Eroare la ștergere', 'error');
+                    }
                 }
                 document.getElementById('modalOverlay').style.display = 'none';
                 document.getElementById('confirmModal').style.display = 'none';
@@ -832,5 +852,6 @@ const ui = {
 
 window.app = ui; 
 document.addEventListener('DOMContentLoaded', () => ui.init());
+
 
 
