@@ -434,38 +434,31 @@ const ui = {
             deleteId = null;
         };
 
-        const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
         if(confirmDeleteBtn) confirmDeleteBtn.onclick = async () => {
             if (deleteId) {
                 try {
-                // 1. Căutăm rezervarea local ca să știm ce slot să deblocăm
+                    // 1. Găsim rezervarea local pentru a-i afla detaliile
                     const booking = [...localBookings, ...historyBookings].find(b => b.id === deleteId);
                     
                     if (booking) {
-                        // Reconstruim ID-ul lacătului
+                        // 2. Ștergem Lock-ul (eliberăm slotul în calendar)
                         const slotID = `${booking.date}_${booking.machineType}_${booking.startTime}`;
-                        // Ștergem lacătul (Deblocare slot)
                         await deleteDoc(doc(db, "slots_lock", slotID));
                     }
 
-                    // 2. Ștergem rezervarea
+                    // 3. Ștergem Rezervarea
                     await deleteDoc(doc(db, "rezervari", deleteId));
                     
-                    // Curățăm local
                     localBookings = localBookings.filter(b => b.id !== deleteId);
                     historyBookings = historyBookings.filter(b => b.id !== deleteId);
                     
-                    utils.showToast('Rezervare ștearsă și slot eliberat!');
+                    utils.showToast('Rezervare și slot deblocate!');
                     this.renderAdminDashboard();
-                    this.renderAll(); // Refresh calendar
+                    this.renderAll(); 
                 } catch (e) {
-                    console.error(e);
-                    // Dacă regula de securitate blochează ștergerea (că nu ești admin)
-                    if(e.code === 'permission-denied') {
-                        utils.showToast('Doar administratorul poate șterge!', 'error');
-                    } else {
-                        utils.showToast('Eroare la ștergere', 'error');
-                    }
+                    console.error("Eroare la ștergere:", e);
+                    utils.showToast('Eroare: Lipsă permisiuni sau eroare server.', 'error');
                 }
                 document.getElementById('modalOverlay').style.display = 'none';
                 document.getElementById('confirmModal').style.display = 'none';
@@ -852,6 +845,7 @@ const ui = {
 
 window.app = ui; 
 document.addEventListener('DOMContentLoaded', () => ui.init());
+
 
 
 
