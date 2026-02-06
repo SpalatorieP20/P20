@@ -221,6 +221,7 @@ body.dark-mode .slot-time { background: rgba(0,0,0,0.4); color: white; }
 body.dark-mode .btn-delete { background: #7f1d1d; color: #fca5a5; }
 body.dark-mode .btn-delete:hover { background: #991b1b; }
 .empty-state { padding: 25px; text-align: center; color: var(--text-muted); font-size: 0.9rem; font-style: italic; }
+.history-loading { font-style: normal; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 120px; }
 
 /* MODALS */
 .modal-overlay { 
@@ -234,15 +235,6 @@ body.dark-mode .btn-delete:hover { background: #991b1b; }
     background: var(--card-bg); padding: 25px; border-radius: var(--radius); 
     width: 90%; max-width: 360px; position: relative; 
     box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: slideUp 0.3s ease; 
-}
-
-/* FIX: Stil specific pentru ADMIN MODAL (SCROLL) */
-#adminModal {
-    max-width: 600px;
-    width: 95%;
-    max-height: 90vh; /* Nu depasi 90% din inaltimea ecranului */
-    overflow-y: auto; /* Activeaza scroll vertical */
-    display: none; 
 }
 
 @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
@@ -304,19 +296,22 @@ body.dark-mode .selected-slot { background-color: #1e3a8a !important; color: whi
     color: #cbd5e1; /* Light gray text for dark mode */
 }
 
-/* Override Modal for Dashboard View */
+/* Modal Admin – un singur bloc: dimensiuni, scroll, temă dashboard */
 #adminModal {
-    background: #0f172a; /* Slate 900 */
+    display: none;
+    width: 95%;
     max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+    background: #0f172a;
     border: 1px solid #1e293b;
     box-shadow: 0 20px 40px rgba(0,0,0,0.4);
 }
-
 #adminModal .modal-close {
     color: #94a3b8;
 }
 #adminModal .modal-close:hover {
-    color: #f59e0b; /* Amber 500 */
+    color: #f59e0b;
 }
 
 /* Header */
