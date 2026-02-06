@@ -67,11 +67,11 @@
                 </div>
 
                 <div class="header-actions">
-                    <button id="themeToggleBtn" class="btn-icon-only" title="Schimbă Tema">
-                        <i class="fa-solid fa-moon"></i>
+                    <button id="themeToggleBtn" class="btn-icon-only" title="Schimbă Tema" aria-label="Schimbă tema (întunecat / deschis)">
+                        <i class="fa-solid fa-moon" aria-hidden="true"></i>
                     </button>
-                    <button id="adminToggleBtn" class="btn-icon-only" title="Admin Login">
-                        <i class="fa-solid fa-lock"></i>
+                    <button id="adminToggleBtn" class="btn-icon-only" title="Admin Login" aria-label="Deschide panoul administrator">
+                        <i class="fa-solid fa-lock" aria-hidden="true"></i>
                     </button>
                 </div>
 
@@ -134,7 +134,7 @@
 
                                 <i class="fa-solid fa-phone"></i>
 
-                                <input type="tel" id="phoneNumber" required placeholder="07xx xxx xxx" maxlength="10">
+                                <input type="tel" id="phoneNumber" required placeholder="07xx xxx xxx" maxlength="10" pattern="07[0-9]{8}" inputmode="numeric" title="10 cifre, începând cu 07" autocomplete="tel">
 
                             </div>
 
@@ -300,7 +300,7 @@
 
         <div id="phoneModal" class="modal-box">
 
-            <button class="modal-close">&times;</button>
+            <button type="button" class="modal-close" aria-label="Închide">&times;</button>
 
             <h3><i class="fa-solid fa-address-card"></i> Contact</h3>
 
@@ -339,7 +339,7 @@
         </div>
 
         <div id="deletePinModal" class="modal-box" style="display: none;">
-            <button class="modal-close">&times;</button>
+            <button type="button" class="modal-close" aria-label="Închide">&times;</button>
             <h3><i class="fa-solid fa-lock"></i> Ștergere</h3>
             <p>Introdu codul PIN (4 cifre) setat la rezervare:</p>
             <input type="password" id="deletePinInput" placeholder="PIN..." class="full-width-input" maxlength="4" style="text-align: center; font-size: 1.5rem; letter-spacing: 5px;">
@@ -353,7 +353,7 @@
 
         <div id="adminModal" class="modal-box">
 
-            <button class="modal-close">&times;</button>
+            <button type="button" class="modal-close" aria-label="Închide">&times;</button>
 
             <div id="adminLoginForm">
 
@@ -362,7 +362,7 @@
                 <input type="email" id="adminEmail" placeholder="Email Admin" style="margin-bottom: 10px; width: 100%; padding: 10px; border:1px solid #ddd; border-radius:6px;">
                 <input type="password" id="adminPassword" placeholder="Parola Admin" style="margin-bottom: 15px; width: 100%; padding: 10px; border:1px solid #ddd; border-radius:6px;">
 
-                <button id="adminLoginBtn" class="btn-primary">Conectare</button>
+                <button type="button" id="adminLoginBtn" class="btn-primary"><i class="fa-solid fa-right-to-bracket"></i> Conectare</button>
 
             </div>
 
@@ -427,11 +427,6 @@
                     <div class="list-badge" id="listBadgeCount">0</div>
                 </div>
 
-                <div class="list-header">
-                    <h3 id="listTitle">Rezervări Active</h3>
-                    <div class="list-badge" id="listBadgeCount">0</div>
-                </div>
-                
                 <div id="adminBookingsList" class="admin-bookings-list">
                     <!-- Content injected by JS -->
                 </div>
