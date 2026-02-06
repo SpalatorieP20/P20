@@ -1020,7 +1020,7 @@ const ui = {
         if (!auth || !auth.currentUser) return;
         try {
             const d = new Date();
-            d.setDate(d.getDate() - 30);
+            d.setDate(d.getDate() - 5);
             const cutoffDate = d.toISOString().split('T')[0];
             const q = query(bookingsCollection, where("date", "<", cutoffDate), limit(50));
             const snapshot = await getDocs(q);
@@ -1097,3 +1097,4 @@ const ui = {
 };
 
 document.addEventListener('DOMContentLoaded', () => ui.init());
+
