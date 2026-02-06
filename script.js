@@ -65,13 +65,32 @@ const utils = {
         return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`; 
     },
     addDays(dateStr, days) {
-        const date = new Date(dateStr);
+        const date = new Date(dateStr + 'T12:00:00');
         date.setDate(date.getDate() + days);
         return date.toISOString().split('T')[0];
     },
     capitalize(str) {
         if (!str) return '';
         return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    },
+    escapeHtml(str) {
+        if (str == null) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    },
+    escapeCsvCell(str) {
+        if (str == null) return '';
+        const s = String(str);
+        if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+        return s;
+    },
+    /** Hash PIN cu SHA-256 – nu stocăm niciodată PIN-ul în clar. */
+    async hashPin(pin) {
+        if (!pin || typeof pin !== 'string') return '';
+        const enc = new TextEncoder().encode(pin);
+        const buf = await crypto.subtle.digest('SHA-256', enc);
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
     }
 };
 
@@ -332,6 +351,25 @@ const ui = {
              document.getElementById('startTime').style.borderColor = 'var(--border)';
         };
 
+        // Validare vizuală telefon (doar cifre, 07...)
+        const phoneInput = document.getElementById('phoneNumber');
+        if (phoneInput) {
+            phoneInput.addEventListener('input', () => {
+                const raw = phoneInput.value.replace(/\D/g, '');
+                phoneInput.value = raw.slice(0, 10);
+                if (raw.length === 0) {
+                    phoneInput.style.borderColor = '';
+                } else if (raw.length === 10 && raw.startsWith('07')) {
+                    phoneInput.style.borderColor = 'var(--success)';
+                } else {
+                    phoneInput.style.borderColor = raw.length >= 2 && !raw.startsWith('07') ? 'var(--danger)' : '';
+                }
+            });
+            phoneInput.addEventListener('blur', () => {
+                if (!phoneInput.value) phoneInput.style.borderColor = '';
+            });
+        }
+
         // Visual Selector
         document.querySelectorAll('.selector-card').forEach(card => {
             card.onclick = () => {
@@ -345,6 +383,21 @@ const ui = {
         });
 
         document.getElementById('userName').oninput = () => this.renderMyBookings();
+
+        // Delegare click pentru "Rezervările Mele" – Anulează
+        document.getElementById('myBookings').addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-delete');
+            if (btn && btn.dataset.deleteId) {
+                this.requestDelete(btn.dataset.deleteId);
+            }
+        });
+        // Delegare click pentru lista admin – Șterge
+        document.getElementById('adminContent').addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-delete-vip');
+            if (btn && btn.dataset.deleteId) {
+                this.confirmDelete(btn.dataset.deleteId);
+            }
+        });
         
         document.querySelectorAll('.modal-close').forEach(btn => btn.onclick = () => {
             document.getElementById('modalOverlay').style.display = 'none';
@@ -367,6 +420,10 @@ const ui = {
 
         // Maintenance Toggle
         document.getElementById('maintenanceToggle').onchange = async (e) => {
+            if (!auth || !auth.currentUser) {
+                e.target.checked = !e.target.checked;
+                return;
+            }
             const isChecked = e.target.checked;
             const statusLabel = document.getElementById('maintenanceStatusLabel');
             if(statusLabel) {
@@ -418,25 +475,31 @@ const ui = {
              document.getElementById('tabHistory').classList.add('active');
              document.getElementById('tabActive').classList.remove('active');
              document.getElementById('listTitle').textContent = "Istoric (Se încarcă...)";
-             
+             const listEl = document.getElementById('adminBookingsList');
+             listEl.innerHTML = '<div class="empty-state history-loading"><div class="spinner" style="width:32px;height:32px;border-width:3px;margin:0 auto 12px;"></div>Se încarcă istoricul...</div>';
+             const badgeEl = document.getElementById('listBadgeCount');
+             if (badgeEl) badgeEl.textContent = '0';
+
              try {
-                 const d = new Date(); 
-                 d.setDate(d.getDate() - 1); 
+                 const d = new Date();
+                 d.setDate(d.getDate() - 1);
                  const yesterday = d.toISOString().split('T')[0];
 
                  const qHistory = query(bookingsCollection, where("date", "<", yesterday), orderBy("date", "desc"), limit(50));
                  const snap = await getDocs(qHistory);
-                 
+
                  historyBookings = [];
                  snap.docs.forEach(doc => {
                      historyBookings.push({ ...doc.data(), id: doc.id });
                  });
-                 
+
                  document.getElementById('listTitle').textContent = "Istoric Rezervări";
                  this.renderAdminDashboard();
              } catch (e) {
                  console.error(e);
                  utils.showToast("Eroare încărcare istoric.", "error");
+                 document.getElementById('listTitle').textContent = "Istoric Rezervări";
+                 listEl.innerHTML = '<div class="empty-state">Eroare la încărcare. Încearcă din nou.</div>';
              }
         };
 
@@ -444,6 +507,7 @@ const ui = {
         const exportBtn = document.getElementById('exportCsvBtn');
         if (exportBtn) {
             exportBtn.onclick = () => {
+                if (!auth || !auth.currentUser) return;
                 const dataToExport = (adminViewMode === 'active') ? localBookings : historyBookings;
                 
                 if (dataToExport.length === 0) {
@@ -456,12 +520,12 @@ const ui = {
 
                 dataToExport.forEach(row => {
                     const rowData = [
-                        row.date,
-                        row.startTime,
-                        row.userName,
-                        row.phoneNumber,
-                        logic.machines[row.machineType],
-                        row.duration
+                        utils.escapeCsvCell(row.date),
+                        utils.escapeCsvCell(row.startTime),
+                        utils.escapeCsvCell(row.userName),
+                        utils.escapeCsvCell(row.phoneNumber),
+                        utils.escapeCsvCell(logic.machines[row.machineType]),
+                        utils.escapeCsvCell(row.duration)
                     ];
                     csvContent += rowData.join(",") + "\n";
                 });
@@ -487,21 +551,25 @@ const ui = {
         // Admin Confirm Delete
         const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
         if(confirmDeleteBtn) confirmDeleteBtn.onclick = async () => {
-             await this.performDelete(deleteId);
+             if (!auth || !auth.currentUser) return;
+             await this.performDelete(deleteId, true);
         };
 
         document.getElementById('adminToggleBtn').onclick = () => { 
             document.getElementById('phoneModal').style.display = 'none';
             document.getElementById('confirmModal').style.display = 'none';
+            document.getElementById('deletePinModal').style.display = 'none';
             document.getElementById('modalOverlay').style.display = 'flex'; 
             document.getElementById('adminModal').style.display = 'block';
         };
         document.getElementById('adminLoginBtn').onclick = this.handleAdminLogin.bind(this);
         document.getElementById('adminLogoutBtn').onclick = () => { 
+            if (!auth) return;
             signOut(auth).then(() => {
                 utils.showToast("Deconectare reușită");
             }).catch((error) => {
                 console.error(error);
+                utils.showToast("Eroare la deconectare", "error");
             });
         };
     },
@@ -521,7 +589,8 @@ const ui = {
                 document.body.classList.remove('admin-mode');
                 document.getElementById('adminContent').style.display = 'none'; 
                 document.getElementById('adminLoginForm').style.display = 'block'; 
-                document.getElementById('adminPassword').value = ''; 
+                document.getElementById('adminPassword').value = '';
+                document.getElementById('adminEmail').value = '';
                 
                 const toggle = document.getElementById('maintenanceToggle');
                 if(toggle && toggle.checked) {
@@ -590,7 +659,7 @@ const ui = {
             }
             
             if (!logic.canUserBook(userName)) {
-                throw new Error("Ai atins limita de 2 rezervări active!");
+                throw new Error("Ai atins limita de 4 rezervări active!");
             }
 
             if (!logic.isSlotFree(machine, this.currentDate, start, duration)) {
@@ -623,11 +692,12 @@ const ui = {
                     start
                 });
 
+                const pinHash = await utils.hashPin(pin);
                 const newBookingRef = doc(collection(db, "rezervari"));
                 transaction.set(newBookingRef, { 
                     userName, 
                     phoneNumber: cleanPhone, 
-                    code: pin,
+                    pinHash,
                     machineType: machine, 
                     date: this.currentDate, 
                     startTime: start, 
@@ -729,7 +799,7 @@ const ui = {
                             const endStr = realEnd > 1440 ? utils.minsToTime(realEnd - 1440) + " (mâine)" : utils.minsToTime(realEnd);
                             timeText = `${booking.startTime} - ${endStr}`;
                         }
-                        div.innerHTML = `<div class="slot-content"><span class="slot-time">${timeText}</span><span class="slot-name">${booking.userName}</span></div>`; 
+                        div.innerHTML = `<div class="slot-content"><span class="slot-time">${utils.escapeHtml(timeText)}</span><span class="slot-name">${utils.escapeHtml(booking.userName)}</span></div>`; 
                     }
                     div.title = `Rezervat: ${booking.userName}`; 
                     div.onclick = () => this.showPhoneModal(booking);
@@ -808,18 +878,26 @@ const ui = {
         // 2. If user has NO pin saved (legacy) -> Deny (Admin only)
         // 3. If user has pin -> Check match
 
-        if (isAdmin) {
+        if (auth && auth.currentUser) {
              await this.performDelete(deleteId);
              document.getElementById('deletePinModal').style.display = 'none';
              return;
         }
 
-        if (!booking.code) {
+        const hasPin = booking.pinHash || booking.code;
+        if (!hasPin) {
              utils.showToast("Rezervare veche fără PIN. Doar admin o poate șterge.", "error");
              return;
         }
 
-        if (booking.code === enteredPin) {
+        let pinOk = false;
+        if (booking.pinHash) {
+            const enteredHash = await utils.hashPin(enteredPin);
+            pinOk = (enteredHash === booking.pinHash);
+        } else {
+            pinOk = (booking.code === enteredPin);
+        }
+        if (pinOk) {
             await this.performDelete(deleteId);
             document.getElementById('deletePinModal').style.display = 'none';
         } else {
@@ -829,8 +907,9 @@ const ui = {
         }
     },
 
-    async performDelete(id) {
+    async performDelete(id, isAdminDelete = false) {
         if (!id) return;
+        if (isAdminDelete && (!auth || !auth.currentUser)) return;
         
         // Disable buttons if possible
         const btnAdmin = document.querySelector('.btn-delete-vip'); // Rough selection
@@ -876,6 +955,7 @@ const ui = {
     },
 
     confirmDelete(id) {
+        if (!auth || !auth.currentUser) return;
         deleteId = id;
         document.getElementById('modalOverlay').style.display = 'flex';
         document.getElementById('phoneModal').style.display = 'none';
@@ -891,7 +971,7 @@ const ui = {
         container.innerHTML = bookings.length ? bookings.map(b => {
              const endMins = utils.timeToMins(b.startTime) + parseInt(b.duration);
              const endTime = utils.minsToTime(endMins);
-             return `<div class="booking-item"><div class="booking-info"><strong>${logic.machines[b.machineType]}</strong><span>${utils.formatDateRO(b.date)} • ${b.startTime} - ${endTime}</span></div><button class="btn-delete" onclick="window.app.requestDelete('${b.id}')">Anulează</button></div>`;
+             return `<div class="booking-item"><div class="booking-info"><strong>${utils.escapeHtml(logic.machines[b.machineType])}</strong><span>${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(b.startTime)} - ${utils.escapeHtml(endTime)}</span></div><button class="btn-delete" data-delete-id="${utils.escapeHtml(b.id)}">Anulează</button></div>`;
         }).join('') : '<div class="empty-state">Nu am găsit rezervări.</div>'; 
     },
 
@@ -899,11 +979,15 @@ const ui = {
         const container = document.getElementById('upcomingBookings'); 
         const today = new Date().toISOString().split('T')[0]; 
         const bookings = localBookings.filter(b => b.date > today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5); 
-        container.innerHTML = bookings.length ? bookings.map(b => `<div class="booking-item"><div class="booking-info"><strong>${b.userName}</strong><span>${utils.formatDateRO(b.date)} • ${logic.machines[b.machineType]}</span></div></div>`).join('') : '<div class="empty-state">Nimic planificat.</div>'; 
+        container.innerHTML = bookings.length ? bookings.map(b => `<div class="booking-item"><div class="booking-info"><strong>${utils.escapeHtml(b.userName)}</strong><span>${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(logic.machines[b.machineType])}</span></div></div>`).join('') : '<div class="empty-state">Nimic planificat.</div>'; 
     },
 
     async handleAdminLogin() { 
-        const email = document.getElementById('adminEmail').value;
+        if (!auth) {
+            utils.showToast("Autentificarea nu este disponibilă. Verifică consola Firebase (Authentication activat?).", "error");
+            return;
+        }
+        const email = document.getElementById('adminEmail').value.trim();
         const password = document.getElementById('adminPassword').value; 
         
         if (!email || !password) {
@@ -911,16 +995,29 @@ const ui = {
             return;
         }
 
+        const btn = document.getElementById('adminLoginBtn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Se conectează...'; }
         try {
             await signInWithEmailAndPassword(auth, email, password);
             utils.showToast('Autentificare reușită!'); 
         } catch (error) {
-            console.error(error);
-            utils.showToast('Email sau parolă greșită', 'error'); 
+            console.error("Admin login error:", error);
+            const code = error.code || '';
+            let msg = 'Email sau parolă greșită.';
+            if (code === 'auth/user-not-found') msg = 'Nu există cont cu acest email. Creează utilizatorul în Firebase Console → Authentication → Users.';
+            else if (code === 'auth/wrong-password') msg = 'Parolă incorectă.';
+            else if (code === 'auth/invalid-credential') msg = 'Email sau parolă greșită. Verifică în Firebase Console că utilizatorul există.';
+            else if (code === 'auth/invalid-email') msg = 'Adresă de email invalidă.';
+            else if (code === 'auth/operation-not-allowed') msg = 'Autentificare Email/Parolă nu e activată. În Firebase: Authentication → Sign-in method → activează Email/Password.';
+            else if (error.message) msg = error.message;
+            utils.showToast(msg, 'error'); 
+        } finally {
+            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Conectare'; }
         }
     },
 
     async cleanupOldBookings() {
+        if (!auth || !auth.currentUser) return;
         try {
             const d = new Date();
             d.setDate(d.getDate() - 30);
@@ -937,6 +1034,7 @@ const ui = {
     },
 
     renderAdminDashboard() { 
+        if (!auth || !auth.currentUser) return;
         const today = new Date().toISOString().split('T')[0];
         const todayBookings = localBookings.filter(b => b.date === today).length;
         const totalActive = localBookings.length;
@@ -985,12 +1083,12 @@ const ui = {
              return `
              <div class="admin-list-item">
                 <div class="admin-item-info">
-                    <strong>${b.userName}</strong>
-                    <span><i class="fa-solid fa-phone"></i> ${b.phoneNumber}</span>
-                    <span><i class="fa-regular fa-calendar"></i> ${utils.formatDateRO(b.date)} • ${b.startTime}-${endTime}</span>
-                    <span><i class="fa-solid fa-soap"></i> ${logic.machines[b.machineType]}</span>
+                    <strong>${utils.escapeHtml(b.userName)}</strong>
+                    <span><i class="fa-solid fa-phone"></i> ${utils.escapeHtml(b.phoneNumber)}</span>
+                    <span><i class="fa-regular fa-calendar"></i> ${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(b.startTime)}-${utils.escapeHtml(endTime)}</span>
+                    <span><i class="fa-solid fa-soap"></i> ${utils.escapeHtml(logic.machines[b.machineType])}</span>
                 </div>
-                <button class="btn-delete-vip" onclick="window.app.confirmDelete('${b.id}')" title="Șterge">
+                <button class="btn-delete-vip" data-delete-id="${utils.escapeHtml(b.id)}" title="Șterge">
                     <i class="fa-solid fa-trash"></i>
                 </button>
              </div>`;
@@ -998,5 +1096,4 @@ const ui = {
     }
 };
 
-window.app = ui; 
 document.addEventListener('DOMContentLoaded', () => ui.init());
