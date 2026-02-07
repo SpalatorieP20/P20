@@ -1,36 +1,6 @@
-// ------------------------------------------------------------------
-// 1. IMPORTURI FIREBASE
-// ------------------------------------------------------------------
-import { getAnalytics, logEvent } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-analytics.js";
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, addDoc, deleteDoc, doc, setDoc, onSnapshot, query, orderBy, where, runTransaction, writeBatch, limit, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-// ------------------------------------------------------------------
-// 2. CONFIGURARE
-// ------------------------------------------------------------------
-const firebaseConfig = {
-  apiKey: "AIzaSyA3uDKfPBvMfuqTk3Z1tLyLOwP40zFtohs",
-  authDomain: "spalatoriep20-b123d.firebaseapp.com",
-  projectId: "spalatoriep20-b123d",
-  storageBucket: "spalatoriep20-b123d.firebasestorage.app",
-  messagingSenderId: "899577919587",
-  appId: "1:899577919587:web:7e32821c02144ce61a6056"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const analytics = getAnalytics(app);
-let auth = null;
-try {
-    auth = getAuth(app);
-} catch (e) {
-    console.warn("Auth initialization failed:", e);
-}
-const bookingsCollection = collection(db, "rezervari");
-
-// ------------------------------------------------------------------
-// 3. LOGICA APLICATIEI
-// ------------------------------------------------------------------
+import { utils } from './utils.js';
+import { logic } from './logic.js';
+import { firebaseService } from './firebase-service.js';
 
 let localBookings = [];
 let historyBookings = []; 
@@ -38,116 +8,7 @@ let deleteId = null;
 let isAdmin = false;
 let adminViewMode = 'active';
 
-const utils = {
-    showToast(message, type = 'success') {
-        const toast = document.getElementById('toast');
-        if (toast) {
-            toast.textContent = message;
-            toast.className = `toast ${type} show`;
-            setTimeout(() => toast.classList.remove('show'), 3000);
-        } else {
-            alert(message);
-        }
-    },
-    formatDateRO(dateStr) {
-        const options = { weekday: 'long', day: 'numeric', month: 'long' };
-        return new Date(dateStr + 'T12:00:00').toLocaleDateString('ro-RO', options);
-    },
-    timeToMins(time) { 
-        if(!time) return 0;
-        const [h, m] = time.split(':').map(Number); 
-        return h * 60 + m; 
-    },
-    minsToTime(mins) { 
-        let h = Math.floor(mins / 60); 
-        const m = mins % 60; 
-        if (h >= 24) h = h - 24; 
-        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`; 
-    },
-    addDays(dateStr, days) {
-        const date = new Date(dateStr + 'T12:00:00');
-        date.setDate(date.getDate() + days);
-        return date.toISOString().split('T')[0];
-    },
-    capitalize(str) {
-        if (!str) return '';
-        return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-    },
-    escapeHtml(str) {
-        if (str == null) return '';
-        const div = document.createElement('div');
-        div.textContent = str;
-        return div.innerHTML;
-    },
-    escapeCsvCell(str) {
-        if (str == null) return '';
-        const s = String(str);
-        if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
-        return s;
-    },
-    /** Hash PIN cu SHA-256 – nu stocăm niciodată PIN-ul în clar. */
-    async hashPin(pin) {
-        if (!pin || typeof pin !== 'string') return '';
-        const enc = new TextEncoder().encode(pin);
-        const buf = await crypto.subtle.digest('SHA-256', enc);
-        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-};
-
-const logic = {
-    machines: { 'masina1': 'Mașină Spălat 1', 'masina2': 'Mașină Spălat 2', 'uscator1': 'Uscător 1', 'uscator2': 'Uscător 2' },
-    
-    generateSlots(startHour = 0, endHour = 24) {
-        const slots = [];
-        for (let h = startHour; h < endHour; h++) { 
-            slots.push(`${h.toString().padStart(2, '0')}:00`); 
-            slots.push(`${h.toString().padStart(2, '0')}:30`); 
-        }
-        return slots;
-    },
-
-    isSlotFree(machine, date, start, duration) {
-        const sameDayBookings = localBookings.filter(b => b.machineType === machine && b.date === date);
-        const reqStart = utils.timeToMins(start);
-        const reqEnd = reqStart + parseInt(duration);
-        
-        const overlapSameDay = sameDayBookings.some(b => {
-            const bStart = utils.timeToMins(b.startTime);
-            const bEnd = bStart + parseInt(b.duration);
-            return (reqStart < bEnd && reqEnd > bStart);
-        });
-
-        if (overlapSameDay) return false;
-
-        const prevDate = utils.addDays(date, -1);
-        const prevDayBookings = localBookings.filter(b => b.machineType === machine && b.date === prevDate);
-        
-        const overlapPrevDay = prevDayBookings.some(b => {
-            const bStart = utils.timeToMins(b.startTime);
-            const bDuration = parseInt(b.duration);
-            const bEndTotal = bStart + bDuration; 
-            
-            if (bEndTotal > 1440) { 
-                const spillEnd = bEndTotal - 1440; 
-                return reqStart < spillEnd;
-            }
-            return false;
-        });
-
-        return !overlapPrevDay;
-    },
-
-    canUserBook(userName) {
-        const limit = 4; 
-        const today = new Date().toISOString().split('T')[0];
-        const userBookings = localBookings.filter(b => 
-            b.userName.toLowerCase() === userName.toLowerCase() && b.date >= today
-        );
-        return userBookings.length < limit;
-    }
-};
-
-const ui = {
+export const ui = {
     currentDate: new Date().toISOString().split('T')[0],
     
     init() {
@@ -165,7 +26,7 @@ const ui = {
             if(phoneInput) phoneInput.value = savedPhone;
         }
 
-        if(auth) this.setupAuthListener();
+        if(firebaseService.auth) this.setupAuthListener();
         
         // Safety Timeout Loader
         setTimeout(() => {
@@ -210,15 +71,14 @@ const ui = {
         dNext.setDate(dNext.getDate() + 7);
         const nextWeek = dNext.toISOString().split('T')[0];
 
-        const q = query(
-            bookingsCollection, 
-            where("date", ">=", yesterday), 
-            where("date", "<=", nextWeek),
-            orderBy("date"), 
-            orderBy("startTime")
+        const q = firebaseService.query(
+            firebaseService.bookingsCollection, 
+            firebaseService.where("date", ">=", yesterday), 
+            firebaseService.orderBy("date"), 
+            firebaseService.orderBy("startTime")
         );
         
-        onSnapshot(q, (snapshot) => {
+        firebaseService.onSnapshot(q, (snapshot) => {
             localBookings = [];
             snapshot.docs.forEach(doc => localBookings.push({ ...doc.data(), id: doc.id }));
             
@@ -234,8 +94,8 @@ const ui = {
             
         }, (error) => { 
             console.error("Eroare Firebase (fallback activat):", error);
-            const qFallback = query(bookingsCollection, where("date", ">=", yesterday), orderBy("date"));
-            onSnapshot(qFallback, (snap) => {
+            const qFallback = firebaseService.query(firebaseService.bookingsCollection, firebaseService.where("date", ">=", yesterday), firebaseService.orderBy("date"));
+            firebaseService.onSnapshot(qFallback, (snap) => {
                  localBookings = [];
                  snap.docs.forEach(doc => localBookings.push({ ...doc.data(), id: doc.id }));
                  this.renderAll();
@@ -248,7 +108,7 @@ const ui = {
         });
 
         // Maintenance Listener
-        onSnapshot(doc(db, "settings", "appState"), (docSnap) => {
+        firebaseService.onSnapshot(firebaseService.doc(firebaseService.db, "settings", "appState"), (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 const maintenanceMode = data.maintenance || false;
@@ -331,7 +191,7 @@ const ui = {
                 const duration = document.getElementById('duration').value;
 
                 if (machine && date && start) {
-                    if (!logic.isSlotFree(machine, date, start, duration)) {
+                    if (!logic.isSlotFree(machine, date, start, duration, localBookings)) {
                         utils.showToast('⚠️ Ora selectată se suprapune!', 'error');
                         timeInput.style.borderColor = 'var(--danger)';
                     } else {
@@ -435,7 +295,7 @@ const ui = {
 
         // Maintenance Toggle
         document.getElementById('maintenanceToggle').onchange = async (e) => {
-            if (!auth || !auth.currentUser) {
+            if (!firebaseService.auth || !firebaseService.auth.currentUser) {
                 e.target.checked = !e.target.checked;
                 return;
             }
@@ -447,7 +307,7 @@ const ui = {
             }
 
             try {
-                await setDoc(doc(db, "settings", "appState"), { maintenance: isChecked });
+                await firebaseService.setDoc(firebaseService.doc(firebaseService.db, "settings", "appState"), { maintenance: isChecked });
                 utils.showToast(isChecked ? "Mentenanță ACTIVATĂ" : "Mentenanță DEZACTIVATĂ");
             } catch (err) {
                 console.error(err);
@@ -500,8 +360,8 @@ const ui = {
                  d.setDate(d.getDate() - 1);
                  const yesterday = d.toISOString().split('T')[0];
 
-                 const qHistory = query(bookingsCollection, where("date", "<", yesterday), orderBy("date", "desc"), limit(50));
-                 const snap = await getDocs(qHistory);
+                 const qHistory = firebaseService.query(firebaseService.bookingsCollection, firebaseService.where("date", "<", yesterday), firebaseService.orderBy("date", "desc"), firebaseService.limit(50));
+                 const snap = await firebaseService.getDocs(qHistory);
 
                  historyBookings = [];
                  snap.docs.forEach(doc => {
@@ -522,7 +382,7 @@ const ui = {
         const exportBtn = document.getElementById('exportCsvBtn');
         if (exportBtn) {
             exportBtn.onclick = () => {
-                if (!auth || !auth.currentUser) return;
+                if (!firebaseService.auth || !firebaseService.auth.currentUser) return;
                 const dataToExport = (adminViewMode === 'active') ? localBookings : historyBookings;
                 
                 if (dataToExport.length === 0) {
@@ -566,7 +426,7 @@ const ui = {
         // Admin Confirm Delete
         const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
         if(confirmDeleteBtn) confirmDeleteBtn.onclick = async () => {
-             if (!auth || !auth.currentUser) return;
+             if (!firebaseService.auth || !firebaseService.auth.currentUser) return;
              await this.performDelete(deleteId, true);
         };
 
@@ -579,8 +439,8 @@ const ui = {
         };
         document.getElementById('adminLoginBtn').onclick = this.handleAdminLogin.bind(this);
         document.getElementById('adminLogoutBtn').onclick = () => { 
-            if (!auth) return;
-            signOut(auth).then(() => {
+            if (!firebaseService.auth) return;
+            firebaseService.signOut(firebaseService.auth).then(() => {
                 utils.showToast("Deconectare reușită");
             }).catch((error) => {
                 console.error(error);
@@ -590,7 +450,7 @@ const ui = {
     },
 
     setupAuthListener() {
-        onAuthStateChanged(auth, (user) => {
+        firebaseService.onAuthStateChanged(firebaseService.auth, (user) => {
             if (user) {
                 isAdmin = true;
                 document.body.classList.add('admin-mode');
@@ -678,43 +538,27 @@ const ui = {
                 throw new Error("PIN-ul trebuie să aibă exact 4 cifre.");
             }
             
-            if (!logic.canUserBook(userName)) {
+            if (!logic.canUserBook(userName, localBookings)) {
                 throw new Error("Ai atins limita de 4 rezervări active!");
             }
 
-            if (!logic.isSlotFree(machine, this.currentDate, start, duration)) {
+            if (!logic.isSlotFree(machine, this.currentDate, start, duration, localBookings)) {
                  throw new Error("Intervalul este deja ocupat (verifica orarul).");
             }
 
             // Tranzacție
-            await runTransaction(db, async (transaction) => {
+            await firebaseService.runTransaction(firebaseService.db, async (transaction) => {
                 const slotID = `${this.currentDate}_${machine}_${start}`;
-                const slotRef = doc(db, "slots_lock", slotID); 
+                const bookingRef = firebaseService.doc(firebaseService.bookingsCollection, slotID);
                 
-                const slotDoc = await transaction.get(slotRef);
-                if (slotDoc.exists()) {
-                    const data = slotDoc.data();
-                    const lockedTime = new Date(data.lockedAt).getTime();
-                    const now = new Date().getTime();
-                    const diff = now - lockedTime;
-                    
-                    // Expire lock after 5 minutes (300000 ms)
-                    if (diff < 300000) {
-                        throw "Cineva a rezervat acest slot chiar acum!";
-                    }
-                    // If expired, we proceed to overwrite it.
+                const bookingDoc = await transaction.get(bookingRef);
+                if (bookingDoc.exists()) {
+                    throw "Intervalul este deja rezervat!";
                 }
-                
-                transaction.set(slotRef, { 
-                    lockedAt: new Date().toISOString(),
-                    machine,
-                    date: this.currentDate,
-                    start
-                });
 
                 const pinHash = await utils.hashPin(pin);
-                const newBookingRef = doc(collection(db, "rezervari"));
-                transaction.set(newBookingRef, { 
+                
+                transaction.set(bookingRef, { 
                     userName, 
                     phoneNumber: cleanPhone, 
                     pinHash,
@@ -726,11 +570,12 @@ const ui = {
                 });
             });
 
+
             // Salvare locală (Ține-mă minte)
             localStorage.setItem('studentName', userName);
             localStorage.setItem('studentPhone', cleanPhone);
 
-            logEvent(analytics, 'rezervare_noua', {
+            firebaseService.logEvent(analytics, 'rezervare_noua', {
                 masina: machine,
                 durata: duration
             });
@@ -912,7 +757,7 @@ const ui = {
         // 2. If user has NO pin saved (legacy) -> Deny (Admin only)
         // 3. If user has pin -> Check match
 
-        if (auth && auth.currentUser) {
+        if (firebaseService.auth && firebaseService.auth.currentUser) {
              await this.performDelete(deleteId);
              document.getElementById('deletePinModal').style.display = 'none';
              return;
@@ -943,7 +788,7 @@ const ui = {
 
     async performDelete(id, isAdminDelete = false) {
         if (!id) return;
-        if (isAdminDelete && (!auth || !auth.currentUser)) return;
+        if (isAdminDelete && (!firebaseService.auth || !firebaseService.auth.currentUser)) return;
         
         // Disable buttons if possible
         const btnAdmin = document.querySelector('.btn-delete-vip'); // Rough selection
@@ -957,14 +802,14 @@ const ui = {
             if (booking) {
                 const slotID = `${booking.date}_${booking.machineType}_${booking.startTime}`;
                 try {
-                    await deleteDoc(doc(db, "slots_lock", slotID));
+                    await firebaseService.deleteDoc(firebaseService.doc(firebaseService.db, "slots_lock", slotID));
                 } catch (lockError) {
                     console.warn("Could not delete lock (likely permission issue), continuing:", lockError);
                 }
             }
 
             // 2. Try to delete the reservation
-            await deleteDoc(doc(db, "rezervari", id));
+            await firebaseService.deleteDoc(firebaseService.doc(firebaseService.db, "rezervari", id));
             
             // Update UI on success
             localBookings = localBookings.filter(b => b.id !== id);
@@ -989,7 +834,7 @@ const ui = {
     },
 
     confirmDelete(id) {
-        if (!auth || !auth.currentUser) return;
+        if (!firebaseService.auth || !firebaseService.auth.currentUser) return;
         deleteId = id;
         document.getElementById('modalOverlay').style.display = 'flex';
         document.getElementById('phoneModal').style.display = 'none';
@@ -1017,7 +862,7 @@ const ui = {
     },
 
     async handleAdminLogin() { 
-        if (!auth) {
+        if (!firebaseService.auth) {
             utils.showToast("Autentificarea nu este disponibilă. Verifică consola Firebase (Authentication activat?).", "error");
             return;
         }
@@ -1032,7 +877,7 @@ const ui = {
         const btn = document.getElementById('adminLoginBtn');
         if (btn) { btn.disabled = true; btn.textContent = 'Se conectează...'; }
         try {
-            await signInWithEmailAndPassword(auth, email, password);
+            await firebaseService.signInWithEmailAndPassword(firebaseService.auth, email, password);
             utils.showToast('Autentificare reușită!'); 
         } catch (error) {
             console.error("Admin login error:", error);
@@ -1051,15 +896,15 @@ const ui = {
     },
 
     async cleanupOldBookings() {
-        if (!auth || !auth.currentUser) return;
+        if (!firebaseService.auth || !firebaseService.auth.currentUser) return;
         try {
             const d = new Date();
             d.setDate(d.getDate() - 5);
             const cutoffDate = d.toISOString().split('T')[0];
-            const q = query(bookingsCollection, where("date", "<", cutoffDate), limit(50));
-            const snapshot = await getDocs(q);
+            const q = firebaseService.query(firebaseService.bookingsCollection, firebaseService.where("date", "<", cutoffDate), firebaseService.limit(50));
+            const snapshot = await firebaseService.getDocs(q);
             if (!snapshot.empty) {
-                const batch = writeBatch(db);
+                const batch = firebaseService.writeBatch(firebaseService.db);
                 snapshot.docs.forEach(doc => { batch.delete(doc.ref); });
                 await batch.commit();
                 console.log(`[Cleanup] Stearse ${snapshot.size} rezervari vechi.`);
@@ -1068,7 +913,7 @@ const ui = {
     },
 
     renderAdminDashboard() { 
-        if (!auth || !auth.currentUser) return;
+        if (!firebaseService.auth || !firebaseService.auth.currentUser) return;
         const today = new Date().toISOString().split('T')[0];
         const todayBookings = localBookings.filter(b => b.date === today).length;
         const totalActive = localBookings.length;
