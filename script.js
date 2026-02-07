@@ -370,6 +370,21 @@ const ui = {
             });
         }
 
+        const skipPhoneCheck = document.getElementById('skipPhone');
+        if (skipPhoneCheck && phoneInput) {
+            skipPhoneCheck.addEventListener('change', () => {
+                if (skipPhoneCheck.checked) {
+                    phoneInput.value = '';
+                    phoneInput.disabled = true;
+                    phoneInput.style.borderColor = '';
+                    phoneInput.placeholder = "Nu este necesar";
+                } else {
+                    phoneInput.disabled = false;
+                    phoneInput.placeholder = "07xx xxx xxx";
+                }
+            });
+        }
+
         // Visual Selector
         document.querySelectorAll('.selector-card').forEach(card => {
             card.onclick = () => {
@@ -648,10 +663,15 @@ const ui = {
             if (userName.length < 3) throw new Error("Introdu un nume complet (minim 3 litere).");
 
             userName = utils.capitalize(userName);
-            const cleanPhone = phone.replace(/\D/g, '');
+            let cleanPhone = phone.replace(/\D/g, '');
+            const skipPhone = document.getElementById('skipPhone').checked;
 
-            if (cleanPhone.length !== 10 || !cleanPhone.startsWith('07')) { 
-                throw new Error("Număr invalid! Trebuie 10 cifre și să înceapă cu 07.");
+            if (skipPhone) {
+                cleanPhone = "-";
+            } else {
+                if (cleanPhone.length !== 10 || !cleanPhone.startsWith('07')) { 
+                    throw new Error("Număr invalid! Trebuie 10 cifre și să înceapă cu 07.");
+                }
             }
 
             if (!pin || pin.length !== 4 || isNaN(pin)) {
@@ -833,13 +853,27 @@ const ui = {
         const copyBtn = document.getElementById('copyPhoneBtn');
         
         // Telefon vizibil pentru toată lumea
-        phoneEl.textContent = booking.phoneNumber; 
-        callBtn.style.display = 'inline-block';
-        copyBtn.style.display = 'inline-block';
-        callBtn.href = `tel:${booking.phoneNumber}`; 
-        copyBtn.onclick = () => { 
-            navigator.clipboard.writeText(booking.phoneNumber).then(() => { utils.showToast('Număr copiat!'); }); 
-        };
+        if (booking.phoneNumber === '-' || booking.phoneNumber === 'Nu este necesar') {
+            phoneEl.textContent = "Numărul de telefon se află pe foaia oficială din spălătorie.";
+            phoneEl.style.fontStyle = 'italic';
+            phoneEl.style.fontSize = '0.9rem';
+            phoneEl.style.color = 'var(--text-muted)';
+            
+            callBtn.style.display = 'none';
+            copyBtn.style.display = 'none';
+        } else {
+            phoneEl.textContent = booking.phoneNumber; 
+            phoneEl.style.fontStyle = 'normal';
+            phoneEl.style.fontSize = '';
+            phoneEl.style.color = '';
+
+            callBtn.style.display = 'inline-block';
+            copyBtn.style.display = 'inline-block';
+            callBtn.href = `tel:${booking.phoneNumber}`; 
+            copyBtn.onclick = () => { 
+                navigator.clipboard.writeText(booking.phoneNumber).then(() => { utils.showToast('Număr copiat!'); }); 
+            };
+        }
 
         document.getElementById('adminModal').style.display = 'none'; 
         document.getElementById('confirmModal').style.display = 'none';
@@ -1097,4 +1131,3 @@ const ui = {
 };
 
 document.addEventListener('DOMContentLoaded', () => ui.init());
-
