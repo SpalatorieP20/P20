@@ -575,7 +575,7 @@ export const ui = {
             localStorage.setItem('studentName', userName);
             localStorage.setItem('studentPhone', cleanPhone);
 
-            firebaseService.logEvent(analytics, 'rezervare_noua', {
+            firebaseService.logEvent(firebaseService.analytics, 'rezervare_noua', {
                 masina: machine,
                 durata: duration
             });
