@@ -628,6 +628,11 @@ export const ui = {
             const col = document.createElement('div'); col.className = 'machine-column';
             const header = document.createElement('div'); header.className = 'machine-header';
             header.innerHTML = `<small>${machineKey.includes('masina') ? '🧺' : '🌬️'}</small><br>${logic.machines[machineKey]}`; col.appendChild(header);
+            let warningText = "";
+            if (machineKey === 'masina2') {
+                warningText = `<div style="font-size: 0.7rem; color: #f59e0b; margin-top:2px;">Posibil nefuncțională</div>`;
+            }
+            header.innerHTML = `<small>${machineKey.includes('masina') ? '🧺' : '🌬️'}</small><br>${logic.machines[machineKey]}${warningText}`; col.appendChild(header);
 
             slots.forEach(slot => {
                 const slotMins = utils.timeToMins(slot); 
@@ -976,3 +981,4 @@ export const ui = {
 };
 
 document.addEventListener('DOMContentLoaded', () => ui.init());
+
