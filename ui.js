@@ -4,127 +4,162 @@ import { firebaseService } from './firebase-service.js';
 import { i18n } from './i18n.js';
 
 let localBookings = [];
-let historyBookings = []; 
+let historyBookings = [];
 let deleteId = null;
 let isAdmin = false;
 let adminViewMode = 'active';
+let brokenMachines = {};
+let notifiedBookings = new Set();
 
 export const ui = {
     currentDate: new Date().toISOString().split('T')[0],
-    
+
     init() {
         this.setupEventListeners();
-        
-        // --- 1. FEATURE: AUTO-FILL (Ține-mă minte) ---
+
+        // AUTO-FILL
         const savedName = localStorage.getItem('studentName');
         const savedPhone = localStorage.getItem('studentPhone');
-        if (savedName) {
-            const nameInput = document.getElementById('userName');
-            if(nameInput) nameInput.value = savedName;
-        }
-        if (savedPhone) {
-            const phoneInput = document.getElementById('phoneNumber');
-            if(phoneInput) phoneInput.value = savedPhone;
-        }
+        if (savedName) { const n = document.getElementById('userName'); if (n) n.value = savedName; }
+        if (savedPhone) { const p = document.getElementById('phoneNumber'); if (p) p.value = savedPhone; }
 
-        if(firebaseService.auth) this.setupAuthListener();
-        
-        // Safety Timeout Loader
+        if (firebaseService.auth) this.setupAuthListener();
+
         setTimeout(() => {
             const loader = document.getElementById('appLoader');
-            if(loader && loader.style.display !== 'none') {
+            if (loader && loader.style.display !== 'none') {
                 const text = document.getElementById('loaderText');
-                if(text) text.textContent = i18n.t("connection_takes_long");
+                if (text) text.textContent = i18n.t("connection_takes_long");
                 const btn = document.getElementById('reloadBtn');
-                if(btn) {
-                    btn.style.display = 'inline-block';
-                    btn.onclick = () => window.location.reload();
-                }
+                if (btn) { btn.style.display = 'inline-block'; btn.onclick = () => window.location.reload(); }
             }
         }, 5000);
 
-        // Theme Init
         const savedTheme = localStorage.getItem('theme');
         if (savedTheme === 'dark') {
             document.body.classList.add('dark-mode');
-            const themeIcon = document.querySelector('#themeToggleBtn i');
-            if(themeIcon) themeIcon.className = 'fa-solid fa-sun';
+            const icon = document.querySelector('#themeToggleBtn i');
+            if (icon) icon.className = 'fa-solid fa-sun';
         }
 
         const dateInput = document.getElementById('bookingDate');
         const today = new Date().toISOString().split('T')[0];
         dateInput.min = today;
         dateInput.value = this.currentDate;
-        
         this.updateDateDisplay();
         this.startMidnightWatcher();
 
-        // Start Live Status Loop
+        // Countdown every second
         this.updateMachineStatus();
-        setInterval(() => this.updateMachineStatus(), 60000);
+        setInterval(() => this.updateMachineStatus(), 1000);
 
-        // Firebase Listeners (Optimized)
-        const d = new Date(); 
-        d.setDate(d.getDate() - 1); 
+        // Firebase bookings listener
+        const d = new Date(); d.setDate(d.getDate() - 1);
         const yesterday = d.toISOString().split('T')[0];
-        
-        const dNext = new Date();
-        dNext.setDate(dNext.getDate() + 7);
-        const nextWeek = dNext.toISOString().split('T')[0];
-
         const q = firebaseService.query(
-            firebaseService.bookingsCollection, 
-            firebaseService.where("date", ">=", yesterday), 
-            firebaseService.orderBy("date"), 
+            firebaseService.bookingsCollection,
+            firebaseService.where("date", ">=", yesterday),
+            firebaseService.orderBy("date"),
             firebaseService.orderBy("startTime")
         );
-        
         firebaseService.onSnapshot(q, (snapshot) => {
             localBookings = [];
             snapshot.docs.forEach(doc => localBookings.push({ ...doc.data(), id: doc.id }));
-            
             const loader = document.getElementById('appLoader');
-            if(loader) {
-                loader.style.opacity = '0';
-                setTimeout(() => loader.style.display = 'none', 500);
-            }
-
+            if (loader) { loader.style.opacity = '0'; setTimeout(() => loader.style.display = 'none', 500); }
             this.renderAll();
-            // Dacă avem date salvate, randăm rezervările utilizatorului
-            if(localStorage.getItem('studentName')) this.renderMyBookings();
-            
-        }, (error) => { 
-            console.error("Eroare Firebase (fallback activat):", error);
-            const qFallback = firebaseService.query(firebaseService.bookingsCollection, firebaseService.where("date", ">=", yesterday), firebaseService.orderBy("date"));
-            firebaseService.onSnapshot(qFallback, (snap) => {
-                 localBookings = [];
-                 snap.docs.forEach(doc => localBookings.push({ ...doc.data(), id: doc.id }));
-                 this.renderAll();
-                 const loader = document.getElementById('appLoader');
-                 if(loader) {
-                    loader.style.opacity = '0';
-                    setTimeout(() => loader.style.display = 'none', 500);
-                 }
+            if (localStorage.getItem('studentName')) this.renderMyBookings();
+        }, (error) => {
+            console.error("Firebase error:", error);
+            const qF = firebaseService.query(firebaseService.bookingsCollection, firebaseService.where("date", ">=", yesterday), firebaseService.orderBy("date"));
+            firebaseService.onSnapshot(qF, (snap) => {
+                localBookings = [];
+                snap.docs.forEach(doc => localBookings.push({ ...doc.data(), id: doc.id }));
+                this.renderAll();
+                const loader = document.getElementById('appLoader');
+                if (loader) { loader.style.opacity = '0'; setTimeout(() => loader.style.display = 'none', 500); }
             });
         });
 
-        // Maintenance Listener
+        // Maintenance + broken machines listener
         firebaseService.onSnapshot(firebaseService.doc(firebaseService.db, "settings", "appState"), (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 const maintenanceMode = data.maintenance || false;
-                
+                brokenMachines = data.brokenMachines || {};
                 const toggle = document.getElementById('maintenanceToggle');
-                if(toggle) toggle.checked = maintenanceMode;
-                
+                if (toggle) toggle.checked = maintenanceMode;
                 const overlay = document.getElementById('maintenanceOverlay');
-                if (maintenanceMode && !isAdmin) {
-                    overlay.style.display = 'flex';
-                } else {
-                    overlay.style.display = 'none';
-                }
+                if (maintenanceMode && !isAdmin) overlay.style.display = 'flex';
+                else overlay.style.display = 'none';
+                this.updateBrokenMachineVisuals();
             }
         });
+
+        this.setupNotifications();
+        setInterval(() => this.checkAndNotify(), 60000);
+    },
+
+    // ─── NOTIFICATIONS ────────────────────────────────────────────────────────
+    setupNotifications() {
+        const notifBtn = document.getElementById('notifToggleBtn');
+        if (!notifBtn || !('Notification' in window)) return;
+        const updateBtn = () => {
+            const perm = Notification.permission;
+            const icon = notifBtn.querySelector('i');
+            if (perm === 'granted') { if (icon) icon.className = 'fa-solid fa-bell'; notifBtn.style.color = 'var(--success)'; notifBtn.title = i18n.t('notif_enabled'); }
+            else if (perm === 'denied') { if (icon) icon.className = 'fa-solid fa-bell-slash'; notifBtn.style.color = 'var(--danger)'; notifBtn.title = i18n.t('notif_denied'); }
+            else { if (icon) icon.className = 'fa-regular fa-bell'; notifBtn.style.color = ''; notifBtn.title = i18n.t('enable_notifs'); }
+        };
+        updateBtn();
+        notifBtn.onclick = async () => {
+            if (Notification.permission === 'default') {
+                const result = await Notification.requestPermission();
+                updateBtn();
+                utils.showToast(result === 'granted' ? i18n.t('notif_enabled') : i18n.t('notif_denied'), result === 'granted' ? 'success' : 'error');
+            } else {
+                utils.showToast(Notification.permission === 'granted' ? i18n.t('notif_enabled') : i18n.t('notif_denied'));
+            }
+        };
+    },
+
+    checkAndNotify() {
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        const savedName = localStorage.getItem('studentName');
+        if (!savedName) return;
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+        const currentMins = now.getHours() * 60 + now.getMinutes();
+        localBookings.filter(b => b.userName.toLowerCase() === savedName.toLowerCase() && b.date === today).forEach(b => {
+            const endMins = utils.timeToMins(b.startTime) + parseInt(b.duration);
+            const remaining = endMins - currentMins;
+            if (remaining >= 12 && remaining <= 17 && !notifiedBookings.has(b.id)) {
+                notifiedBookings.add(b.id);
+                const name = i18n.t(b.machineType === 'masina1' ? 'machine1' : b.machineType === 'masina2' ? 'machine2' : b.machineType === 'uscator1' ? 'dryer1' : 'dryer2');
+                new Notification(i18n.t('notif_title'), {
+                    body: `${name}: ${i18n.t('notif_body')}`,
+                    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🧺</text></svg>',
+                    tag: b.id
+                });
+            }
+        });
+    },
+
+    // ─── BROKEN MACHINES ──────────────────────────────────────────────────────
+    updateBrokenMachineVisuals() {
+        Object.keys(logic.machines).forEach(key => {
+            const card = document.querySelector(`.selector-card[data-value="${key}"]`);
+            if (card) card.classList.toggle('broken', !!brokenMachines[key]);
+        });
+    },
+
+    async toggleBrokenMachine(machineKey) {
+        if (!firebaseService.auth || !firebaseService.auth.currentUser) return;
+        const newBroken = { ...brokenMachines, [machineKey]: !brokenMachines[machineKey] };
+        try {
+            await firebaseService.setDoc(firebaseService.doc(firebaseService.db, "settings", "appState"), { brokenMachines: newBroken }, { merge: true });
+            utils.showToast(newBroken[machineKey] ? i18n.t('broken_on_toast') : i18n.t('broken_off_toast'));
+        } catch (e) { console.error(e); utils.showToast("Eroare.", "error"); }
     },
 
     startMidnightWatcher() {
@@ -134,71 +169,51 @@ export const ui = {
             if (dateInput.min !== realToday) {
                 dateInput.min = realToday;
                 if (this.currentDate < realToday) {
-                    this.currentDate = realToday;
-                    dateInput.value = realToday;
-                    this.updateDateDisplay();
-                    this.renderAll();
+                    this.currentDate = realToday; dateInput.value = realToday;
+                    this.updateDateDisplay(); this.renderAll();
                     utils.showToast(i18n.t("new_day_calendar_updated"));
                 }
             }
         }, 60000);
     },
 
-
-
     applyTranslations() {
-        document.querySelectorAll('[data-i18n]').forEach(el => {
-            const key = el.getAttribute('data-i18n');
-            if (i18n.t(key)) el.textContent = i18n.t(key);
-        });
-        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-            const key = el.getAttribute('data-i18n-placeholder');
-            if (i18n.t(key)) el.setAttribute('placeholder', i18n.t(key));
-        });
-        document.querySelectorAll('[data-i18n-title]').forEach(el => {
-            const key = el.getAttribute('data-i18n-title');
-            if (i18n.t(key)) el.setAttribute('title', i18n.t(key));
-        });
+        document.querySelectorAll('[data-i18n]').forEach(el => { const k = el.getAttribute('data-i18n'); if (i18n.t(k)) el.textContent = i18n.t(k); });
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { const k = el.getAttribute('data-i18n-placeholder'); if (i18n.t(k)) el.setAttribute('placeholder', i18n.t(k)); });
+        document.querySelectorAll('[data-i18n-title]').forEach(el => { const k = el.getAttribute('data-i18n-title'); if (i18n.t(k)) el.setAttribute('title', i18n.t(k)); });
     },
+
+    // ─── LIVE MACHINE STATUS (every second) ───────────────────────────────────
     updateMachineStatus() {
         const today = new Date().toISOString().split('T')[0];
         const now = new Date();
         const currentMins = now.getHours() * 60 + now.getMinutes();
-
+        const currentSecs = now.getSeconds();
         Object.keys(logic.machines).forEach(machineKey => {
             const statusEl = document.getElementById(`status-${machineKey}`);
             if (!statusEl) return;
-
-            const activeBooking = localBookings.find(b => {
-                if (b.machineType !== machineKey) return false;
-                if (b.date !== today) return false;
-                
-                const startMins = utils.timeToMins(b.startTime);
-                const endMins = startMins + parseInt(b.duration);
-                
-                return currentMins >= startMins && currentMins < endMins;
+            if (brokenMachines[machineKey]) { statusEl.textContent = i18n.t('broken'); statusEl.className = 'live-status broken'; return; }
+            const active = localBookings.find(b => {
+                if (b.machineType !== machineKey || b.date !== today) return false;
+                const sm = utils.timeToMins(b.startTime), em = sm + parseInt(b.duration);
+                return currentMins >= sm && currentMins < em;
             });
-
-            if (activeBooking) {
-                const startMins = utils.timeToMins(activeBooking.startTime);
-                const endMins = startMins + parseInt(activeBooking.duration);
-                const remaining = endMins - currentMins;
-                
-                statusEl.textContent = `${i18n.t("busy")} (${remaining} ${i18n.t("min")})`;
+            if (active) {
+                const endMins = utils.timeToMins(active.startTime) + parseInt(active.duration);
+                const totalSecs = (endMins - currentMins) * 60 - currentSecs;
+                const mL = Math.floor(totalSecs / 60), sL = totalSecs % 60;
+                statusEl.textContent = `${i18n.t("busy")} ${mL}:${sL.toString().padStart(2, '0')}`;
                 statusEl.className = 'live-status busy';
-            } else {
-                statusEl.textContent = i18n.t("free");
-                statusEl.className = 'live-status free';
-            }
+            } else { statusEl.textContent = i18n.t("free"); statusEl.className = 'live-status free'; }
         });
     },
 
+    // ─── EVENT LISTENERS ──────────────────────────────────────────────────────
     setupEventListeners() {
         document.getElementById('bookingForm').addEventListener('submit', this.handleBooking.bind(this));
-        
         document.getElementById('prevDay').onclick = () => this.changeDate(-1);
         document.getElementById('nextDay').onclick = () => this.changeDate(1);
-        
+
         const timeInput = document.getElementById('startTime');
         if (timeInput) {
             timeInput.addEventListener('change', () => {
@@ -206,264 +221,214 @@ export const ui = {
                 const date = document.getElementById('bookingDate').value;
                 const start = timeInput.value;
                 const duration = document.getElementById('duration').value;
-
                 if (machine && date && start) {
-                    if (!logic.isSlotFree(machine, date, start, duration, localBookings)) {
-                        utils.showToast(i18n.t("overlap_warning"), 'error');
-                        timeInput.style.borderColor = 'var(--danger)';
-                    } else {
-                        timeInput.style.borderColor = 'var(--success)';
-                    }
+                    const ok = logic.isSlotFree(machine, date, start, duration, localBookings);
+                    timeInput.style.borderColor = ok ? 'var(--success)' : 'var(--danger)';
+                    if (!ok) utils.showToast(i18n.t("overlap_warning"), 'error');
                 }
             });
         }
-        
-        document.getElementById('bookingDate').onchange = (e) => { 
-            this.currentDate = e.target.value; 
-            this.updateDateDisplay(); 
-            this.renderAll(); 
-        };
-        
-        document.getElementById('machineType').onchange = () => {
-             document.getElementById('startTime').style.borderColor = 'var(--border)';
-        };
 
-        // Validare vizuală telefon (doar cifre, 07...)
+        document.getElementById('bookingDate').onchange = (e) => { this.currentDate = e.target.value; this.updateDateDisplay(); this.renderAll(); };
+        document.getElementById('machineType').onchange = () => { document.getElementById('startTime').style.borderColor = 'var(--border)'; };
+
         const phoneInput = document.getElementById('phoneNumber');
         if (phoneInput) {
             phoneInput.addEventListener('input', () => {
                 const raw = phoneInput.value.replace(/\D/g, '');
                 phoneInput.value = raw.slice(0, 10);
-                if (raw.length === 0) {
-                    phoneInput.style.borderColor = '';
-                } else if (raw.length === 10 && raw.startsWith('07')) {
-                    phoneInput.style.borderColor = 'var(--success)';
-                } else {
-                    phoneInput.style.borderColor = raw.length >= 2 && !raw.startsWith('07') ? 'var(--danger)' : '';
-                }
+                if (!raw.length) phoneInput.style.borderColor = '';
+                else if (raw.length === 10 && raw.startsWith('07')) phoneInput.style.borderColor = 'var(--success)';
+                else phoneInput.style.borderColor = raw.length >= 2 && !raw.startsWith('07') ? 'var(--danger)' : '';
             });
-            phoneInput.addEventListener('blur', () => {
-                if (!phoneInput.value) phoneInput.style.borderColor = '';
+            phoneInput.addEventListener('blur', () => { if (!phoneInput.value) phoneInput.style.borderColor = ''; });
+        }
+
+        const skipCheck = document.getElementById('skipPhone');
+        if (skipCheck && phoneInput) {
+            skipCheck.addEventListener('change', () => {
+                if (skipCheck.checked) { phoneInput.value = ''; phoneInput.disabled = true; phoneInput.style.borderColor = ''; phoneInput.placeholder = i18n.t("not_required"); }
+                else { phoneInput.disabled = false; phoneInput.placeholder = "07xx xxx xxx"; }
             });
         }
 
-        const skipPhoneCheck = document.getElementById('skipPhone');
-        if (skipPhoneCheck && phoneInput) {
-            skipPhoneCheck.addEventListener('change', () => {
-                if (skipPhoneCheck.checked) {
-                    phoneInput.value = '';
-                    phoneInput.disabled = true;
-                    phoneInput.style.borderColor = '';
-                    phoneInput.placeholder = i18n.t("not_required");
-                } else {
-                    phoneInput.disabled = false;
-                    phoneInput.placeholder = "07xx xxx xxx";
-                }
-            });
-        }
-
-        // Visual Selector
         document.querySelectorAll('.selector-card').forEach(card => {
             card.onclick = () => {
                 document.querySelectorAll('.selector-card').forEach(c => c.classList.remove('selected'));
                 card.classList.add('selected');
-                const value = card.dataset.value;
                 const select = document.getElementById('machineType');
-                select.value = value;
+                select.value = card.dataset.value;
                 select.dispatchEvent(new Event('change'));
             };
         });
 
         document.getElementById('userName').oninput = () => this.renderMyBookings();
 
-        // Delegare click pentru "Rezervările Mele" – Anulează
         document.getElementById('myBookings').addEventListener('click', (e) => {
             const btn = e.target.closest('.btn-delete');
-            if (btn && btn.dataset.deleteId) {
-                this.requestDelete(btn.dataset.deleteId);
-            }
-        });
-        // Delegare click pentru lista admin – Șterge
-        document.getElementById('adminContent').addEventListener('click', (e) => {
-            const btn = e.target.closest('.btn-delete-vip');
-            if (btn && btn.dataset.deleteId) {
-                this.confirmDelete(btn.dataset.deleteId);
-            }
-        });
-        
-        document.querySelectorAll('.modal-close').forEach(btn => btn.onclick = () => {
-            document.getElementById('modalOverlay').style.display = 'none';
-            document.getElementById('confirmModal').style.display = 'none';
-            document.getElementById('adminModal').style.display = 'none';
-            document.getElementById('deletePinModal').style.display = 'none';
+            if (btn?.dataset.deleteId) this.requestDelete(btn.dataset.deleteId);
         });
 
-        // Delete handlers
+        document.getElementById('adminContent').addEventListener('click', (e) => {
+            const del = e.target.closest('.btn-delete-vip');
+            if (del?.dataset.deleteId) this.confirmDelete(del.dataset.deleteId);
+            const broken = e.target.closest('.broken-toggle');
+            if (broken?.dataset.machine) this.toggleBrokenMachine(broken.dataset.machine);
+        });
+
+        document.querySelectorAll('.modal-close').forEach(btn => btn.onclick = () => {
+            ['modalOverlay','confirmModal','adminModal','deletePinModal','successModal'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.style.display = 'none';
+            });
+        });
+
+        const successClose = document.getElementById('successModalCloseBtn');
+        if (successClose) successClose.onclick = () => { document.getElementById('successModal').style.display = 'none'; document.getElementById('modalOverlay').style.display = 'none'; };
+
         const reqDelBtn = document.getElementById('requestDeleteBtn');
         if (reqDelBtn) reqDelBtn.onclick = () => this.requestDelete();
-
         const confirmPinBtn = document.getElementById('confirmPinDeleteBtn');
         if (confirmPinBtn) confirmPinBtn.onclick = () => this.confirmPinDelete();
-
         const cancelPinBtn = document.getElementById('cancelPinDeleteBtn');
-        if (cancelPinBtn) cancelPinBtn.onclick = () => {
-             document.getElementById('deletePinModal').style.display = 'none';
-        };
+        if (cancelPinBtn) cancelPinBtn.onclick = () => { document.getElementById('deletePinModal').style.display = 'none'; };
 
-        // Maintenance Toggle
         document.getElementById('maintenanceToggle').onchange = async (e) => {
-            if (!firebaseService.auth || !firebaseService.auth.currentUser) {
-                e.target.checked = !e.target.checked;
-                return;
-            }
+            if (!firebaseService.auth?.currentUser) { e.target.checked = !e.target.checked; return; }
             const isChecked = e.target.checked;
             const statusLabel = document.getElementById('maintenanceStatusLabel');
-            if(statusLabel) {
-               statusLabel.textContent = isChecked ? i18n.t("system_offline") : i18n.t("system_online");
-               if(isChecked) statusLabel.classList.add('offline'); else statusLabel.classList.remove('offline');
-            }
-
+            if (statusLabel) { statusLabel.textContent = isChecked ? i18n.t("system_offline") : i18n.t("system_online"); isChecked ? statusLabel.classList.add('offline') : statusLabel.classList.remove('offline'); }
             try {
-                await firebaseService.setDoc(firebaseService.doc(firebaseService.db, "settings", "appState"), { maintenance: isChecked });
+                await firebaseService.setDoc(firebaseService.doc(firebaseService.db, "settings", "appState"), { maintenance: isChecked, brokenMachines }, { merge: true });
                 utils.showToast(isChecked ? i18n.t("maintenance_on") : i18n.t("maintenance_off"));
-            } catch (err) {
-                console.error(err);
-                utils.showToast("Eroare la salvarea setării.", "error");
-                e.target.checked = !isChecked;
-            }
+            } catch (err) { console.error(err); utils.showToast("Eroare.", "error"); e.target.checked = !isChecked; }
         };
 
         document.getElementById('maintenanceAdminBtn').onclick = () => {
-             document.getElementById('modalOverlay').style.display = 'flex';
-             document.getElementById('adminModal').style.display = 'block';
-             document.getElementById('phoneModal').style.display = 'none';
-             document.getElementById('confirmModal').style.display = 'none';
-        };
-        
-        const themeBtn = document.getElementById('themeToggleBtn');
-        if(themeBtn) {
-            themeBtn.onclick = () => {
-                document.body.classList.toggle('dark-mode');
-                const isDark = document.body.classList.contains('dark-mode');
-                localStorage.setItem('theme', isDark ? 'dark' : 'light');
-                const icon = themeBtn.querySelector('i');
-                if(icon) icon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
-            };
-        }
-
-        // Admin Search & Tabs
-        document.getElementById('adminSearchInput').addEventListener('input', () => this.renderAdminDashboard());
-        document.getElementById('adminDateFilter').addEventListener('change', () => this.renderAdminDashboard());
-        
-        document.getElementById('tabActive').onclick = () => {
-             adminViewMode = 'active';
-             document.getElementById('tabActive').classList.add('active');
-             document.getElementById('tabHistory').classList.remove('active');
-             document.getElementById('listTitle').textContent = i18n.t("active_bookings");
-             this.renderAdminDashboard();
-        };
-        document.getElementById('tabHistory').onclick = async () => {
-             adminViewMode = 'history';
-             document.getElementById('tabHistory').classList.add('active');
-             document.getElementById('tabActive').classList.remove('active');
-             document.getElementById('listTitle').textContent = i18n.t("history_loading");
-             const listEl = document.getElementById('adminBookingsList');
-             listEl.innerHTML = '<div class="empty-state history-loading"><div class="spinner" style="width:32px;height:32px;border-width:3px;margin:0 auto 12px;"></div>Se încarcă istoricul...</div>';
-             const badgeEl = document.getElementById('listBadgeCount');
-             if (badgeEl) badgeEl.textContent = '0';
-
-             try {
-                 const d = new Date();
-                 d.setDate(d.getDate() - 1);
-                 const yesterday = d.toISOString().split('T')[0];
-
-                 const qHistory = firebaseService.query(firebaseService.bookingsCollection, firebaseService.where("date", "<", yesterday), firebaseService.orderBy("date", "desc"), firebaseService.limit(50));
-                 const snap = await firebaseService.getDocs(qHistory);
-
-                 historyBookings = [];
-                 snap.docs.forEach(doc => {
-                     historyBookings.push({ ...doc.data(), id: doc.id });
-                 });
-
-                 document.getElementById('listTitle').textContent = i18n.t("history_bookings");
-                 this.renderAdminDashboard();
-             } catch (e) {
-                 console.error(e);
-                 utils.showToast(i18n.t("history_error"), "error");
-                 document.getElementById('listTitle').textContent = i18n.t("history_bookings");
-                 listEl.innerHTML = '<div class="empty-state">Eroare la încărcare. Încearcă din nou.</div>';
-             }
-        };
-
-        // --- 2. FEATURE: EXPORT CSV ---
-        const exportBtn = document.getElementById('exportCsvBtn');
-        if (exportBtn) {
-            exportBtn.onclick = () => {
-                if (!firebaseService.auth || !firebaseService.auth.currentUser) return;
-                const dataToExport = (adminViewMode === 'active') ? localBookings : historyBookings;
-                
-                if (dataToExport.length === 0) {
-                    utils.showToast(i18n.t("no_export_data"), "error");
-                    return;
-                }
-
-                let csvContent = "data:text/csv;charset=utf-8,";
-                csvContent += "Data,Ora,Nume,Telefon,Masina,Durata\n";
-
-                dataToExport.forEach(row => {
-                    const rowData = [
-                        utils.escapeCsvCell(row.date),
-                        utils.escapeCsvCell(row.startTime),
-                        utils.escapeCsvCell(row.userName),
-                        utils.escapeCsvCell(row.phoneNumber),
-                        utils.escapeCsvCell(i18n.t(row.machineType === 'masina1' ? 'machine1' : row.machineType === 'masina2' ? 'machine2' : row.machineType === 'uscator1' ? 'dryer1' : 'dryer2')),
-                        utils.escapeCsvCell(row.duration)
-                    ];
-                    csvContent += rowData.join(",") + "\n";
-                });
-
-                const encodedUri = encodeURI(csvContent);
-                const link = document.createElement("a");
-                link.setAttribute("href", encodedUri);
-                link.setAttribute("download", `raport_${adminViewMode}.csv`);
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            };
-        }
-
-        // Admin Cancel Delete
-        const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
-        if(cancelDeleteBtn) cancelDeleteBtn.onclick = () => {
-            document.getElementById('modalOverlay').style.display = 'none';
-            document.getElementById('confirmModal').style.display = 'none';
-            deleteId = null;
-        };
-
-        // Admin Confirm Delete
-        const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
-        if(confirmDeleteBtn) confirmDeleteBtn.onclick = async () => {
-             if (!firebaseService.auth || !firebaseService.auth.currentUser) return;
-             await this.performDelete(deleteId, true);
-        };
-
-        document.getElementById('adminToggleBtn').onclick = () => { 
+            document.getElementById('modalOverlay').style.display = 'flex';
+            document.getElementById('adminModal').style.display = 'block';
             document.getElementById('phoneModal').style.display = 'none';
             document.getElementById('confirmModal').style.display = 'none';
-            document.getElementById('deletePinModal').style.display = 'none';
-            document.getElementById('modalOverlay').style.display = 'flex'; 
+        };
+
+        const themeBtn = document.getElementById('themeToggleBtn');
+        if (themeBtn) themeBtn.onclick = () => {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            const icon = themeBtn.querySelector('i');
+            if (icon) icon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+        };
+
+        document.getElementById('adminSearchInput').addEventListener('input', () => this.renderAdminDashboard());
+        document.getElementById('adminDateFilter').addEventListener('change', () => this.renderAdminDashboard());
+
+        document.getElementById('tabActive').onclick = () => {
+            adminViewMode = 'active';
+            document.getElementById('tabActive').classList.add('active');
+            document.getElementById('tabHistory').classList.remove('active');
+            document.getElementById('listTitle').textContent = i18n.t("active_bookings");
+            this.renderAdminDashboard();
+        };
+
+        document.getElementById('tabHistory').onclick = async () => {
+            adminViewMode = 'history';
+            document.getElementById('tabHistory').classList.add('active');
+            document.getElementById('tabActive').classList.remove('active');
+            document.getElementById('listTitle').textContent = i18n.t("history_loading");
+            const listEl = document.getElementById('adminBookingsList');
+            listEl.innerHTML = '<div class="empty-state"><div class="spinner" style="width:32px;height:32px;border-width:3px;margin:0 auto 12px;"></div>Se încarcă...</div>';
+            const badgeEl = document.getElementById('listBadgeCount');
+            if (badgeEl) badgeEl.textContent = '0';
+            try {
+                const d2 = new Date(); d2.setDate(d2.getDate() - 1);
+                const yest = d2.toISOString().split('T')[0];
+                const qH = firebaseService.query(firebaseService.bookingsCollection, firebaseService.where("date", "<", yest), firebaseService.orderBy("date", "desc"), firebaseService.limit(50));
+                const snap = await firebaseService.getDocs(qH);
+                historyBookings = [];
+                snap.docs.forEach(doc => historyBookings.push({ ...doc.data(), id: doc.id }));
+                document.getElementById('listTitle').textContent = i18n.t("history_bookings");
+                this.renderAdminDashboard();
+            } catch (e) {
+                console.error(e);
+                utils.showToast(i18n.t("history_error"), "error");
+                document.getElementById('listTitle').textContent = i18n.t("history_bookings");
+                listEl.innerHTML = '<div class="empty-state">Eroare la încărcare.</div>';
+            }
+        };
+
+        const exportBtn = document.getElementById('exportCsvBtn');
+        if (exportBtn) exportBtn.onclick = () => {
+            if (!firebaseService.auth?.currentUser) return;
+            const data = adminViewMode === 'active' ? localBookings : historyBookings;
+            if (!data.length) { utils.showToast(i18n.t("no_export_data"), "error"); return; }
+            let csv = "data:text/csv;charset=utf-8,\uFEFF";
+            csv += "Data,Ora,Nume,Telefon,Masina,Durata\n";
+            data.forEach(r => {
+                csv += [r.date, r.startTime, r.userName, r.phoneNumber,
+                    i18n.t(r.machineType === 'masina1' ? 'machine1' : r.machineType === 'masina2' ? 'machine2' : r.machineType === 'uscator1' ? 'dryer1' : 'dryer2'),
+                    r.duration].map(v => utils.escapeCsvCell(v)).join(",") + "\n";
+            });
+            const link = document.createElement("a");
+            link.setAttribute("href", encodeURI(csv));
+            link.setAttribute("download", `raport_${adminViewMode}.csv`);
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        };
+
+        const exportPdfBtn = document.getElementById('exportPdfBtn');
+        if (exportPdfBtn) exportPdfBtn.onclick = () => this.exportToPdf();
+
+        const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+        if (cancelDeleteBtn) cancelDeleteBtn.onclick = () => { document.getElementById('modalOverlay').style.display = 'none'; document.getElementById('confirmModal').style.display = 'none'; deleteId = null; };
+
+        const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+        if (confirmDeleteBtn) confirmDeleteBtn.onclick = async () => { if (!firebaseService.auth?.currentUser) return; await this.performDelete(deleteId, true); };
+
+        document.getElementById('adminToggleBtn').onclick = () => {
+            ['phoneModal','confirmModal','deletePinModal'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+            document.getElementById('modalOverlay').style.display = 'flex';
             document.getElementById('adminModal').style.display = 'block';
         };
         document.getElementById('adminLoginBtn').onclick = this.handleAdminLogin.bind(this);
-        document.getElementById('adminLogoutBtn').onclick = () => { 
+        document.getElementById('adminLogoutBtn').onclick = () => {
             if (!firebaseService.auth) return;
-            firebaseService.signOut(firebaseService.auth).then(() => {
-                utils.showToast(i18n.t("logout_success"));
-            }).catch((error) => {
-                console.error(error);
-                utils.showToast(i18n.t("logout_error"), "error");
-            });
+            firebaseService.signOut(firebaseService.auth).then(() => utils.showToast(i18n.t("logout_success"))).catch(e => { console.error(e); utils.showToast(i18n.t("logout_error"), "error"); });
         };
+    },
+
+    // ─── PDF EXPORT ───────────────────────────────────────────────────────────
+    async exportToPdf() {
+        if (!firebaseService.auth?.currentUser) return;
+        const data = adminViewMode === 'active' ? localBookings : historyBookings;
+        if (!data.length) { utils.showToast(i18n.t("no_export_data"), "error"); return; }
+        utils.showToast("Se generează PDF...");
+        const loadScript = src => new Promise((res, rej) => {
+            if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
+            const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s);
+        });
+        try {
+            await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+            await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js');
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.setFontSize(18); doc.setTextColor(79, 70, 229); doc.text('Spalatorie Camin', 14, 18);
+            doc.setFontSize(11); doc.setTextColor(100, 100, 100);
+            doc.text(`Raport ${adminViewMode === 'active' ? 'Active' : 'Istoric'} — ${new Date().toLocaleDateString('ro-RO')}`, 14, 26);
+            doc.autoTable({
+                head: [['Data', 'Interval', 'Nume', 'Telefon', 'Masina', 'Durata']],
+                body: data.map(b => {
+                    const end = utils.minsToTime(utils.timeToMins(b.startTime) + parseInt(b.duration));
+                    return [b.date, `${b.startTime} - ${end}`, b.userName, b.phoneNumber || '-',
+                        i18n.t(b.machineType === 'masina1' ? 'machine1' : b.machineType === 'masina2' ? 'machine2' : b.machineType === 'uscator1' ? 'dryer1' : 'dryer2'),
+                        `${b.duration} min`];
+                }),
+                startY: 32,
+                styles: { fontSize: 9, cellPadding: 4 },
+                headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: 'bold' },
+                alternateRowStyles: { fillColor: [245, 245, 255] },
+                columnStyles: { 2: { fontStyle: 'bold' } }
+            });
+            doc.save(`raport_rezervari_${adminViewMode}.pdf`);
+        } catch (err) { console.error(err); utils.showToast("Eroare la generarea PDF.", "error"); }
     },
 
     setupAuthListener() {
@@ -471,24 +436,19 @@ export const ui = {
             if (user) {
                 isAdmin = true;
                 document.body.classList.add('admin-mode');
-                document.getElementById('adminLoginForm').style.display = 'none'; 
-                document.getElementById('adminContent').style.display = 'block'; 
+                document.getElementById('adminLoginForm').style.display = 'none';
+                document.getElementById('adminContent').style.display = 'block';
                 document.getElementById('maintenanceOverlay').style.display = 'none';
-                this.renderAdminDashboard();
-                this.cleanupOldBookings();
+                this.renderAdminDashboard(); this.cleanupOldBookings();
             } else {
                 isAdmin = false;
                 document.body.classList.remove('admin-mode');
-                document.getElementById('adminContent').style.display = 'none'; 
-                document.getElementById('adminLoginForm').style.display = 'block'; 
+                document.getElementById('adminContent').style.display = 'none';
+                document.getElementById('adminLoginForm').style.display = 'block';
                 document.getElementById('adminPassword').value = '';
                 document.getElementById('adminEmail').value = '';
-                
                 const toggle = document.getElementById('maintenanceToggle');
-                if(toggle && toggle.checked) {
-                    document.getElementById('maintenanceOverlay').style.display = 'flex';
-                    document.getElementById('modalOverlay').style.display = 'none';
-                }
+                if (toggle?.checked) { document.getElementById('maintenanceOverlay').style.display = 'flex'; document.getElementById('modalOverlay').style.display = 'none'; }
             }
         });
     },
@@ -496,367 +456,284 @@ export const ui = {
     changeDate(days) {
         const date = new Date(this.currentDate);
         date.setDate(date.getDate() + days);
-        const newDateStr = date.toISOString().split('T')[0];
-        
+        const newDate = date.toISOString().split('T')[0];
         const today = new Date().toISOString().split('T')[0];
-        if (newDateStr < today) {
-            utils.showToast(i18n.t("cannot_see_past"), 'error');
-            return;
-        }
-
-        this.currentDate = newDateStr;
-        document.getElementById('bookingDate').value = this.currentDate;
-        this.updateDateDisplay(); 
-        this.renderAll(); 
+        if (newDate < today) { utils.showToast(i18n.t("cannot_see_past"), 'error'); return; }
+        this.currentDate = newDate;
+        document.getElementById('bookingDate').value = newDate;
+        this.updateDateDisplay(); this.renderAll();
     },
 
-    updateDateDisplay() { 
-        const display = document.getElementById('currentDateDisplay'); 
-        const today = new Date().toISOString().split('T')[0]; 
-        display.textContent = (this.currentDate === today) ? i18n.t("today_display") : utils.formatDateRO(this.currentDate); 
+    updateDateDisplay() {
+        const display = document.getElementById('currentDateDisplay');
+        const today = new Date().toISOString().split('T')[0];
+        display.textContent = this.currentDate === today ? i18n.t("today_display") : utils.formatDateRO(this.currentDate);
     },
 
-    // --- 3. HANDLE BOOKING (CORECTAT ȘI OPTIMIZAT) ---
+    // ─── SUCCESS MODAL ────────────────────────────────────────────────────────
+    showSuccessModal(booking) {
+        const modal = document.getElementById('successModal');
+        if (!modal) return;
+        const endMins = utils.timeToMins(booking.startTime) + parseInt(booking.duration);
+        const machineName = i18n.t(booking.machineType === 'masina1' ? 'machine1' : booking.machineType === 'masina2' ? 'machine2' : booking.machineType === 'uscator1' ? 'dryer1' : 'dryer2');
+        document.getElementById('successMachine').textContent = machineName;
+        document.getElementById('successDate').textContent = utils.formatDateRO(booking.date);
+        document.getElementById('successTime').textContent = `${booking.startTime} — ${utils.minsToTime(endMins)}`;
+        document.getElementById('successDuration').textContent = `${booking.duration} min`;
+        document.getElementById('successName').textContent = booking.userName;
+        ['phoneModal','confirmModal','adminModal','deletePinModal'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+        document.getElementById('modalOverlay').style.display = 'flex';
+        modal.style.display = 'block';
+    },
+
+    // ─── HANDLE BOOKING ───────────────────────────────────────────────────────
     async handleBooking(e) {
         e.preventDefault();
         const submitBtn = e.target.querySelector('button[type="submit"]');
-        const originalBtnText = submitBtn.innerHTML;
-        
+        const orig = submitBtn.innerHTML;
         submitBtn.disabled = true;
         submitBtn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;margin:0;display:inline-block;"></div> Verificare...';
-
         try {
-            // Definim variabilele LA ÎNCEPUT
             let userName = document.getElementById('userName').value.trim();
             const phone = document.getElementById('phoneNumber').value.trim();
             const pin = document.getElementById('userPin').value.trim();
             const machine = document.getElementById('machineType').value;
             const start = document.getElementById('startTime').value;
             const duration = parseInt(document.getElementById('duration').value);
+            const bookingDate = document.getElementById('bookingDate').value;
+            const repeatNext = document.getElementById('repeatBooking')?.checked || false;
 
-            // Validări
             if (!start) throw new Error(i18n.t("select_time_err"));
             if (!machine) throw new Error(i18n.t("choose_machine_err"));
             if (userName.length < 3) throw new Error(i18n.t("short_name_err"));
+            if (brokenMachines[machine]) throw new Error(i18n.t("machine_broken_err"));
 
             userName = utils.capitalize(userName);
             let cleanPhone = phone.replace(/\D/g, '');
             const skipPhone = document.getElementById('skipPhone').checked;
+            if (skipPhone) { cleanPhone = "-"; }
+            else if (cleanPhone.length !== 10 || !cleanPhone.startsWith('07')) throw new Error(i18n.t("invalid_phone_err"));
 
-            if (skipPhone) {
-                cleanPhone = "-";
-            } else {
-                if (cleanPhone.length !== 10 || !cleanPhone.startsWith('07')) { 
-                    throw new Error(i18n.t("invalid_phone_err"));
-                }
-            }
+            if (!pin || pin.length !== 4 || isNaN(pin)) throw new Error(i18n.t("pin_4_digits_err"));
+            if (!logic.canUserBook(userName, localBookings)) throw new Error(i18n.t("limit_reached_err"));
+            if (!logic.isSlotFree(machine, bookingDate, start, duration, localBookings)) throw new Error(i18n.t("slot_taken_err"));
 
-            if (!pin || pin.length !== 4 || isNaN(pin)) {
-                throw new Error(i18n.t("pin_4_digits_err"));
-            }
-            
-            if (!logic.canUserBook(userName, localBookings)) {
-                throw new Error(i18n.t("limit_reached_err"));
-            }
-
-            if (!logic.isSlotFree(machine, this.currentDate, start, duration, localBookings)) {
-                 throw new Error(i18n.t("slot_taken_err"));
-            }
-
-            // Tranzacție
             await firebaseService.runTransaction(firebaseService.db, async (transaction) => {
-                const slotID = `${this.currentDate}_${machine}_${start}`;
-                const bookingRef = firebaseService.doc(firebaseService.bookingsCollection, slotID);
-                
-                const bookingDoc = await transaction.get(bookingRef);
-                if (bookingDoc.exists()) {
-                    throw i18n.t("slot_taken_transaction_err");
-                }
-
+                const slotID = `${bookingDate}_${machine}_${start}`;
+                const ref = firebaseService.doc(firebaseService.bookingsCollection, slotID);
+                const existing = await transaction.get(ref);
+                if (existing.exists()) throw i18n.t("slot_taken_transaction_err");
                 const pinHash = await utils.hashPin(pin);
-                
-                transaction.set(bookingRef, { 
-                    userName, 
-                    phoneNumber: cleanPhone, 
-                    pinHash,
-                    machineType: machine, 
-                    date: this.currentDate, 
-                    startTime: start, 
-                    duration: duration, 
-                    createdAt: new Date().toISOString() 
-                });
+                transaction.set(ref, { userName, phoneNumber: cleanPhone, pinHash, machineType: machine, date: bookingDate, startTime: start, duration, createdAt: new Date().toISOString() });
             });
 
+            // Repeat booking next week
+            let repeatSuccess = false;
+            if (repeatNext) {
+                const nextWeek = utils.addDays(bookingDate, 7);
+                if (logic.isSlotFree(machine, nextWeek, start, duration, localBookings)) {
+                    try {
+                        await firebaseService.runTransaction(firebaseService.db, async (transaction) => {
+                            const slotID = `${nextWeek}_${machine}_${start}`;
+                            const ref = firebaseService.doc(firebaseService.bookingsCollection, slotID);
+                            const existing = await transaction.get(ref);
+                            if (existing.exists()) throw new Error('slot_taken');
+                            const pinHash = await utils.hashPin(pin);
+                            transaction.set(ref, { userName, phoneNumber: cleanPhone, pinHash, machineType: machine, date: nextWeek, startTime: start, duration, createdAt: new Date().toISOString() });
+                        });
+                        repeatSuccess = true;
+                    } catch (re) { console.warn("Repeat booking failed:", re); }
+                }
+            }
 
-            // Salvare locală (Ține-mă minte)
             localStorage.setItem('studentName', userName);
             localStorage.setItem('studentPhone', cleanPhone);
+            firebaseService.logEvent(firebaseService.analytics, 'rezervare_noua', { masina: machine, durata: duration });
 
-            firebaseService.logEvent(firebaseService.analytics, 'rezervare_noua', {
-                masina: machine,
-                durata: duration
-            });
-
-            utils.showToast(i18n.t("booking_success"));
-            e.target.reset(); 
-            
-            // Re-umplem câmpurile
-            document.getElementById('userName').value = userName; 
-            document.getElementById('bookingDate').value = this.currentDate;
+            e.target.reset();
+            document.getElementById('userName').value = userName;
+            document.getElementById('bookingDate').value = bookingDate;
             document.getElementById('startTime').style.borderColor = 'var(--border)';
             document.querySelectorAll('.selected-slot').forEach(el => el.classList.remove('selected-slot'));
-            
-        } catch (error) { 
-            console.error(error); 
+            document.querySelectorAll('.selector-card').forEach(c => c.classList.remove('selected'));
+
+            this.showSuccessModal({ userName, machineType: machine, date: bookingDate, startTime: start, duration });
+            if (repeatSuccess) utils.showToast(i18n.t("repeat_success"), 'success');
+
+        } catch (error) {
+            console.error(error);
             let msg = i18n.t("server_error");
             if (typeof error === 'string') msg = error;
             else if (error.message) msg = error.message;
-            utils.showToast(msg, 'error'); 
+            utils.showToast(msg, 'error');
         } finally {
             submitBtn.disabled = false;
-            submitBtn.innerHTML = originalBtnText;
+            submitBtn.innerHTML = orig;
         }
     },
 
-    renderAll() { 
-        this.renderSchedule(); 
-        this.renderMyBookings(); 
-        this.renderUpcoming(); 
-        this.updateMachineStatus();
-        if (document.getElementById('adminContent').style.display === 'block') { 
-            this.renderAdminDashboard(); 
-        } 
+    renderAll() {
+        this.renderSchedule(); this.renderMyBookings(); this.renderUpcoming(); this.updateMachineStatus();
+        if (document.getElementById('adminContent').style.display === 'block') this.renderAdminDashboard();
     },
 
+    // ─── SCHEDULE ─────────────────────────────────────────────────────────────
     renderSchedule() {
-        const grid = document.getElementById('scheduleGrid'); grid.innerHTML = '';
+        const grid = document.getElementById('scheduleGrid');
+        grid.innerHTML = '';
         const slots = logic.generateSlots();
-        const todaysBookings = localBookings.filter(b => b.date === this.currentDate);
         const prevDate = utils.addDays(this.currentDate, -1);
-        const spillBookings = localBookings.filter(b => {
-            if (b.date !== prevDate) return false;
-            const end = utils.timeToMins(b.startTime) + parseInt(b.duration);
-            return end > 1440;
-        });
-
-        const allBookings = [...todaysBookings, ...spillBookings];
+        const allBookings = [
+            ...localBookings.filter(b => b.date === this.currentDate),
+            ...localBookings.filter(b => b.date === prevDate && (utils.timeToMins(b.startTime) + parseInt(b.duration)) > 1440)
+        ];
 
         Object.keys(logic.machines).forEach(machineKey => {
             const col = document.createElement('div'); col.className = 'machine-column';
             const header = document.createElement('div'); header.className = 'machine-header';
-            header.innerHTML = `<small>${machineKey.includes('masina') ? '🧺' : '🌬️'}</small><br>${i18n.t(machineKey === 'masina1' ? 'machine1' : machineKey === 'masina2' ? 'machine2' : machineKey === 'uscator1' ? 'dryer1' : 'dryer2')}`; col.appendChild(header);
+            const isBroken = !!brokenMachines[machineKey];
+            const label = i18n.t(machineKey === 'masina1' ? 'machine1' : machineKey === 'masina2' ? 'machine2' : machineKey === 'uscator1' ? 'dryer1' : 'dryer2');
+            header.innerHTML = `<small>${machineKey.includes('masina') ? '🧺' : '🌬️'}</small><br>${label}${isBroken ? ' 🔧' : ''}`;
+            if (isBroken) header.style.color = 'var(--danger)';
+            col.appendChild(header);
 
             slots.forEach(slot => {
-                const slotMins = utils.timeToMins(slot); 
-                const nextSlotMins = slotMins + 30; 
-
+                const slotMins = utils.timeToMins(slot);
+                const nextSlotMins = slotMins + 30;
                 const booking = allBookings.find(b => {
                     if (b.machineType !== machineKey) return false;
-                    let bStart = utils.timeToMins(b.startTime);
-                    let bEnd = bStart + parseInt(b.duration); 
-                    if (b.date === prevDate) { bStart = 0; bEnd = bEnd - 1440; }
-                    return (bStart < nextSlotMins && bEnd > slotMins);
+                    let bS = utils.timeToMins(b.startTime), bE = bS + parseInt(b.duration);
+                    if (b.date === prevDate) { bS = 0; bE -= 1440; }
+                    return bS < nextSlotMins && bE > slotMins;
                 });
-
-                const div = document.createElement('div'); div.className = `time-slot ${booking ? 'occupied' : 'available'}`;
-                
+                const div = document.createElement('div');
+                div.className = `time-slot ${booking ? 'occupied' : isBroken ? 'broken-slot' : 'available'}`;
                 if (booking) {
-                    let bStart = utils.timeToMins(booking.startTime);
-                    let bEnd = bStart + parseInt(booking.duration);
+                    let bS = utils.timeToMins(booking.startTime), bE = bS + parseInt(booking.duration);
                     let isSpill = false;
-                    if (booking.date === prevDate) { isSpill = true; bStart = 0; bEnd = bEnd - 1440; }
-                    
-                    const isStartOfBookingInGrid = (bStart >= slotMins && bStart < nextSlotMins);
-
-                    if (bStart >= slotMins) div.classList.add('booking-start'); 
-                    if (bEnd <= nextSlotMins) div.classList.add('booking-end'); 
-                    if (bStart < slotMins && bEnd > nextSlotMins) div.classList.add('booking-middle');
-
-                    if (isStartOfBookingInGrid) { 
-                        let timeText = "";
-                        if (isSpill) {
-                            timeText = `... - ${utils.minsToTime(bEnd)}`;
-                        } else {
-                            const realEnd = bStart + parseInt(booking.duration);
-                            const endStr = realEnd > 1440 ? utils.minsToTime(realEnd - 1440) + ` (${i18n.t("tomorrow")})` : utils.minsToTime(realEnd);
-                            timeText = `${booking.startTime} - ${endStr}`;
-                        }
-                        div.innerHTML = `<div class="slot-content"><span class="slot-time">${utils.escapeHtml(timeText)}</span><span class="slot-name">${utils.escapeHtml(booking.userName)}</span></div>`; 
+                    if (booking.date === prevDate) { isSpill = true; bS = 0; bE -= 1440; }
+                    if (bS >= slotMins) div.classList.add('booking-start');
+                    if (bE <= nextSlotMins) div.classList.add('booking-end');
+                    if (bS < slotMins && bE > nextSlotMins) div.classList.add('booking-middle');
+                    const isStart = bS >= slotMins && bS < nextSlotMins;
+                    if (isStart) {
+                        const timeText = isSpill ? `... - ${utils.minsToTime(bE)}` : (() => {
+                            const realEnd = bS + parseInt(booking.duration);
+                            return `${booking.startTime} - ${realEnd > 1440 ? utils.minsToTime(realEnd - 1440) + ` (${i18n.t("tomorrow")})` : utils.minsToTime(realEnd)}`;
+                        })();
+                        div.innerHTML = `<div class="slot-content"><span class="slot-time">${utils.escapeHtml(timeText)}</span><span class="slot-name">${utils.escapeHtml(booking.userName)}</span></div>`;
                     }
-                    div.title = `${i18n.t("reserved")} ${booking.userName}`; 
+                    div.title = `${i18n.t("reserved")} ${booking.userName}`;
                     div.onclick = () => this.showPhoneModal(booking);
+                } else if (isBroken) {
+                    div.textContent = slot; div.title = i18n.t('broken');
                 } else {
                     div.textContent = slot;
-                    div.onclick = (e) => {
-                        document.getElementById('machineType').value = machineKey; 
-                        document.getElementById('duration').value = "60"; 
-                        document.getElementById('startTime').value = slot; 
-
-                        // Fix: sincronizează și selector-ul vizual
+                    div.onclick = (ev) => {
+                        document.getElementById('machineType').value = machineKey;
+                        document.getElementById('duration').value = "60";
+                        document.getElementById('startTime').value = slot;
+                        // Fix: sync visual selector
                         document.querySelectorAll('.selector-card').forEach(c => c.classList.remove('selected'));
                         const card = document.querySelector(`.selector-card[data-value="${machineKey}"]`);
                         if (card) card.classList.add('selected');
-                        
-                        document.querySelector('.booking-card').scrollIntoView({behavior: 'smooth', block: 'center'}); 
-                        document.querySelector('.booking-card').classList.add('highlight-pulse'); 
-                        setTimeout(() => document.querySelector('.booking-card').classList.remove('highlight-pulse'), 1000); 
-
+                        document.querySelector('.booking-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        document.querySelector('.booking-card').classList.add('highlight-pulse');
+                        setTimeout(() => document.querySelector('.booking-card').classList.remove('highlight-pulse'), 1000);
                         document.querySelectorAll('.selected-slot').forEach(el => el.classList.remove('selected-slot'));
-                        e.target.classList.add('selected-slot');
+                        ev.target.classList.add('selected-slot');
                     };
                 }
                 col.appendChild(div);
             });
             grid.appendChild(col);
         });
+
+        // Auto-scroll to current time
+        const today = new Date().toISOString().split('T')[0];
+        if (this.currentDate === today) {
+            requestAnimationFrame(() => {
+                const now = new Date();
+                const slotIndex = Math.max(0, Math.floor((now.getHours() * 60 + now.getMinutes()) / 30) - 1);
+                const sc = document.querySelector('.schedule-container');
+                const firstCol = grid.querySelector('.machine-column');
+                if (sc && firstCol) {
+                    const target = firstCol.querySelectorAll('.time-slot')[slotIndex];
+                    if (target) sc.scrollTop = target.offsetTop - 60;
+                }
+            });
+        }
     },
 
-    showPhoneModal(booking) { 
+    showPhoneModal(booking) {
         deleteId = booking.id;
-        document.getElementById('modalUserName').textContent = booking.userName; 
-        
+        document.getElementById('modalUserName').textContent = booking.userName;
         const phoneEl = document.getElementById('modalPhoneNumber');
         const callBtn = document.getElementById('callPhoneBtn');
         const copyBtn = document.getElementById('copyPhoneBtn');
-        
-        // Telefon vizibil pentru toată lumea
         if (booking.phoneNumber === '-' || booking.phoneNumber === 'Nu este necesar') {
             phoneEl.textContent = i18n.t("phone_on_paper");
-            phoneEl.style.fontStyle = 'italic';
-            phoneEl.style.fontSize = '0.9rem';
-            phoneEl.style.color = 'var(--text-muted)';
-            
-            callBtn.style.display = 'none';
-            copyBtn.style.display = 'none';
+            phoneEl.style.cssText = 'font-style:italic;font-size:0.9rem;color:var(--text-muted);';
+            callBtn.style.display = 'none'; copyBtn.style.display = 'none';
         } else {
-            phoneEl.textContent = booking.phoneNumber; 
-            phoneEl.style.fontStyle = 'normal';
-            phoneEl.style.fontSize = '';
-            phoneEl.style.color = '';
-
-            callBtn.style.display = 'inline-block';
-            copyBtn.style.display = 'inline-block';
-            callBtn.href = `tel:${booking.phoneNumber}`; 
-            copyBtn.onclick = () => { 
-                navigator.clipboard.writeText(booking.phoneNumber).then(() => { utils.showToast(i18n.t("phone_copied")); }); 
-            };
+            phoneEl.textContent = booking.phoneNumber;
+            phoneEl.style.cssText = '';
+            callBtn.style.display = 'inline-block'; copyBtn.style.display = 'inline-block';
+            callBtn.href = `tel:${booking.phoneNumber}`;
+            copyBtn.onclick = () => navigator.clipboard.writeText(booking.phoneNumber).then(() => utils.showToast(i18n.t("phone_copied")));
         }
-
-        document.getElementById('adminModal').style.display = 'none'; 
-        document.getElementById('confirmModal').style.display = 'none';
-        document.getElementById('deletePinModal').style.display = 'none';
-        document.getElementById('modalOverlay').style.display = 'flex'; 
-        document.getElementById('phoneModal').style.display = 'block'; 
+        ['adminModal','confirmModal','deletePinModal','successModal'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+        document.getElementById('modalOverlay').style.display = 'flex';
+        document.getElementById('phoneModal').style.display = 'block';
     },
 
     requestDelete(id) {
-        if (id) deleteId = id; // Update ID if provided (for My Bookings flow)
+        if (id) deleteId = id;
         document.getElementById('phoneModal').style.display = 'none';
         document.getElementById('deletePinModal').style.display = 'block';
         const input = document.getElementById('deletePinInput');
-        input.value = '';
-        input.focus();
+        input.value = ''; input.focus();
     },
 
     async confirmPinDelete() {
         const input = document.getElementById('deletePinInput');
         const enteredPin = input.value.trim();
-        
-        if (!enteredPin || enteredPin.length !== 4) {
-            utils.showToast(i18n.t("enter_4_pin_err"), "error");
-            return;
-        }
-
+        if (!enteredPin || enteredPin.length !== 4) { utils.showToast(i18n.t("enter_4_pin_err"), "error"); return; }
         const booking = [...localBookings, ...historyBookings].find(b => b.id === deleteId);
-        if (!booking) {
-            utils.showToast(i18n.t("booking_not_found_err"), "error");
-            document.getElementById('modalOverlay').style.display = 'none';
-            return;
-        }
-
-        // Logic check:
-        // 1. If admin -> Bypass
-        // 2. If user has NO pin saved (legacy) -> Deny (Admin only)
-        // 3. If user has pin -> Check match
-
-        if (firebaseService.auth && firebaseService.auth.currentUser) {
-             await this.performDelete(deleteId);
-             document.getElementById('deletePinModal').style.display = 'none';
-             return;
-        }
-
+        if (!booking) { utils.showToast(i18n.t("booking_not_found_err"), "error"); document.getElementById('modalOverlay').style.display = 'none'; return; }
+        if (firebaseService.auth?.currentUser) { await this.performDelete(deleteId); document.getElementById('deletePinModal').style.display = 'none'; return; }
         const hasPin = booking.pinHash || booking.code;
-        if (!hasPin) {
-             utils.showToast(i18n.t("old_booking_no_pin_err"), "error");
-             return;
-        }
-
-        let pinOk = false;
-        if (booking.pinHash) {
-            const enteredHash = await utils.hashPin(enteredPin);
-            pinOk = (enteredHash === booking.pinHash);
-        } else {
-            pinOk = (booking.code === enteredPin);
-        }
-        if (pinOk) {
-            await this.performDelete(deleteId);
-            document.getElementById('deletePinModal').style.display = 'none';
-        } else {
-            utils.showToast(i18n.t("wrong_pin_err"), "error");
-            input.value = '';
-            input.style.borderColor = "var(--danger)";
-        }
+        if (!hasPin) { utils.showToast(i18n.t("old_booking_no_pin_err"), "error"); return; }
+        let pinOk = booking.pinHash ? (await utils.hashPin(enteredPin)) === booking.pinHash : booking.code === enteredPin;
+        if (pinOk) { await this.performDelete(deleteId); document.getElementById('deletePinModal').style.display = 'none'; }
+        else { utils.showToast(i18n.t("wrong_pin_err"), "error"); input.value = ''; input.style.borderColor = "var(--danger)"; }
     },
 
     async performDelete(id, isAdminDelete = false) {
         if (!id) return;
-        if (isAdminDelete && (!firebaseService.auth || !firebaseService.auth.currentUser)) return;
-        
-        // Disable buttons if possible
-        const btnAdmin = document.querySelector('.btn-delete-vip'); // Rough selection
-        const btnUser = document.getElementById('confirmPinDeleteBtn');
-        if(btnUser) btnUser.disabled = true;
-
+        if (isAdminDelete && !firebaseService.auth?.currentUser) return;
+        const btn = document.getElementById('confirmPinDeleteBtn');
+        if (btn) btn.disabled = true;
         try {
             const booking = [...localBookings, ...historyBookings].find(b => b.id === id);
-            
-            // 1. Try to delete the lock (Best Effort)
             if (booking) {
-                const slotID = `${booking.date}_${booking.machineType}_${booking.startTime}`;
-                try {
-                    await firebaseService.deleteDoc(firebaseService.doc(firebaseService.db, "slots_lock", slotID));
-                } catch (lockError) {
-                    console.warn("Could not delete lock (likely permission issue), continuing:", lockError);
-                }
+                try { await firebaseService.deleteDoc(firebaseService.doc(firebaseService.db, "slots_lock", `${booking.date}_${booking.machineType}_${booking.startTime}`)); }
+                catch (le) { console.warn("Lock delete failed:", le); }
             }
-
-            // 2. Try to delete the reservation
             await firebaseService.deleteDoc(firebaseService.doc(firebaseService.db, "rezervari", id));
-            
-            // Update UI on success
             localBookings = localBookings.filter(b => b.id !== id);
             historyBookings = historyBookings.filter(b => b.id !== id);
-            
             utils.showToast(i18n.t("delete_success"));
-            this.renderAll(); 
-            document.getElementById('modalOverlay').style.display = 'none';
-            document.getElementById('confirmModal').style.display = 'none';
-            document.getElementById('deletePinModal').style.display = 'none';
+            this.renderAll();
+            ['modalOverlay','confirmModal','deletePinModal'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
         } catch (e) {
-            console.error("Eroare la ștergere:", e);
-            if (e.code === 'permission-denied') {
-                utils.showToast(i18n.t("permission_denied_err"), 'error');
-            } else {
-                utils.showToast('Eroare server: ' + e.message, 'error');
-            }
-        } finally {
-            if(btnUser) btnUser.disabled = false;
-            deleteId = null;
-        }
+            console.error("Delete error:", e);
+            utils.showToast(e.code === 'permission-denied' ? i18n.t("permission_denied_err") : 'Eroare: ' + e.message, 'error');
+        } finally { if (btn) btn.disabled = false; deleteId = null; }
     },
 
     confirmDelete(id) {
-        if (!firebaseService.auth || !firebaseService.auth.currentUser) return;
+        if (!firebaseService.auth?.currentUser) return;
         deleteId = id;
         document.getElementById('modalOverlay').style.display = 'flex';
         document.getElementById('phoneModal').style.display = 'none';
@@ -864,136 +741,134 @@ export const ui = {
         document.getElementById('confirmModal').style.display = 'block';
     },
 
-    renderMyBookings() { 
-        const container = document.getElementById('myBookings'); 
-        const currentUser = document.getElementById('userName').value.trim().toLowerCase(); 
-        if (!currentUser) { container.innerHTML = `<div class="empty-state">${i18n.t("enter_name_to_see_bookings")}</div>`; return; } 
-        const bookings = localBookings.filter(b => b.userName.toLowerCase().startsWith(currentUser)).sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime)); 
+    renderMyBookings() {
+        const container = document.getElementById('myBookings');
+        const currentUser = document.getElementById('userName').value.trim().toLowerCase();
+        if (!currentUser) { container.innerHTML = `<div class="empty-state">${i18n.t("enter_name_to_see_bookings")}</div>`; return; }
+        // Fix: startsWith to avoid showing other people's bookings
+        const bookings = localBookings.filter(b => b.userName.toLowerCase().startsWith(currentUser)).sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
         container.innerHTML = bookings.length ? bookings.map(b => {
-             const endMins = utils.timeToMins(b.startTime) + parseInt(b.duration);
-             const endTime = utils.minsToTime(endMins);
-             return `<div class="booking-item"><div class="booking-info"><strong>${utils.escapeHtml(i18n.t(b.machineType === 'masina1' ? 'machine1' : b.machineType === 'masina2' ? 'machine2' : b.machineType === 'uscator1' ? 'dryer1' : 'dryer2'))}</strong><span>${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(b.startTime)} - ${utils.escapeHtml(endTime)}</span></div><button class="btn-delete" data-delete-id="${utils.escapeHtml(b.id)}">Anulează</button></div>`;
-        }).join('') : `<div class="empty-state">${i18n.t("no_bookings_found")}</div>`; 
+            const end = utils.minsToTime(utils.timeToMins(b.startTime) + parseInt(b.duration));
+            return `<div class="booking-item"><div class="booking-info"><strong>${utils.escapeHtml(i18n.t(b.machineType === 'masina1' ? 'machine1' : b.machineType === 'masina2' ? 'machine2' : b.machineType === 'uscator1' ? 'dryer1' : 'dryer2'))}</strong><span>${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(b.startTime)} - ${utils.escapeHtml(end)}</span></div><button class="btn-delete" data-delete-id="${utils.escapeHtml(b.id)}">Anulează</button></div>`;
+        }).join('') : `<div class="empty-state">${i18n.t("no_bookings_found")}</div>`;
     },
 
-    renderUpcoming() { 
-        const container = document.getElementById('upcomingBookings'); 
-        const today = new Date().toISOString().split('T')[0]; 
-        const bookings = localBookings.filter(b => b.date > today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5); 
-        container.innerHTML = bookings.length ? bookings.map(b => `<div class="booking-item"><div class="booking-info"><strong>${utils.escapeHtml(b.userName)}</strong><span>${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(i18n.t(b.machineType === 'masina1' ? 'machine1' : b.machineType === 'masina2' ? 'machine2' : b.machineType === 'uscator1' ? 'dryer1' : 'dryer2'))}</span></div></div>`).join('') : `<div class="empty-state">${i18n.t("nothing_planned")}</div>`; 
+    renderUpcoming() {
+        const container = document.getElementById('upcomingBookings');
+        const today = new Date().toISOString().split('T')[0];
+        const bookings = localBookings.filter(b => b.date > today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5);
+        container.innerHTML = bookings.length ? bookings.map(b => `<div class="booking-item"><div class="booking-info"><strong>${utils.escapeHtml(b.userName)}</strong><span>${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(i18n.t(b.machineType === 'masina1' ? 'machine1' : b.machineType === 'masina2' ? 'machine2' : b.machineType === 'uscator1' ? 'dryer1' : 'dryer2'))}</span></div></div>`).join('') : `<div class="empty-state">${i18n.t("nothing_planned")}</div>`;
     },
 
-    async handleAdminLogin() { 
-        if (!firebaseService.auth) {
-            utils.showToast(i18n.t("auth_unavailable_err"), "error");
-            return;
-        }
+    async handleAdminLogin() {
+        if (!firebaseService.auth) { utils.showToast(i18n.t("auth_unavailable_err"), "error"); return; }
         const email = document.getElementById('adminEmail').value.trim();
-        const password = document.getElementById('adminPassword').value; 
-        
-        if (!email || !password) {
-            utils.showToast(i18n.t("enter_email_pass_err"), "error");
-            return;
-        }
-
+        const password = document.getElementById('adminPassword').value;
+        if (!email || !password) { utils.showToast(i18n.t("enter_email_pass_err"), "error"); return; }
         const btn = document.getElementById('adminLoginBtn');
         if (btn) { btn.disabled = true; btn.textContent = i18n.t("logging_in"); }
         try {
             await firebaseService.signInWithEmailAndPassword(firebaseService.auth, email, password);
-            utils.showToast(i18n.t("login_success")); 
+            utils.showToast(i18n.t("login_success"));
         } catch (error) {
-            console.error("Admin login error:", error);
-            const code = error.code || '';
+            const c = error.code || '';
             let msg = 'Email sau parolă greșită.';
-            if (code === 'auth/user-not-found') msg = 'Nu există cont cu acest email. Creează utilizatorul în Firebase Console → Authentication → Users.';
-            else if (code === 'auth/wrong-password') msg = 'Parolă incorectă.';
-            else if (code === 'auth/invalid-credential') msg = 'Email sau parolă greșită. Verifică în Firebase Console că utilizatorul există.';
-            else if (code === 'auth/invalid-email') msg = 'Adresă de email invalidă.';
-            else if (code === 'auth/operation-not-allowed') msg = 'Autentificare Email/Parolă nu e activată. În Firebase: Authentication → Sign-in method → activează Email/Password.';
+            if (c === 'auth/user-not-found') msg = 'Nu există cont cu acest email.';
+            else if (c === 'auth/wrong-password') msg = 'Parolă incorectă.';
+            else if (c === 'auth/invalid-credential') msg = 'Email sau parolă greșită.';
+            else if (c === 'auth/invalid-email') msg = 'Email invalid.';
+            else if (c === 'auth/operation-not-allowed') msg = 'Email/Parolă nu e activat în Firebase.';
             else if (error.message) msg = error.message;
-            utils.showToast(msg, 'error'); 
-        } finally {
-            if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Conectare'; }
-        }
+            utils.showToast(msg, 'error');
+        } finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Conectare'; } }
     },
 
     async cleanupOldBookings() {
-        if (!firebaseService.auth || !firebaseService.auth.currentUser) return;
+        if (!firebaseService.auth?.currentUser) return;
         try {
-            const d = new Date();
-            d.setDate(d.getDate() - 5);
-            const cutoffDate = d.toISOString().split('T')[0];
-            const q = firebaseService.query(firebaseService.bookingsCollection, firebaseService.where("date", "<", cutoffDate), firebaseService.limit(50));
-            const snapshot = await firebaseService.getDocs(q);
-            if (!snapshot.empty) {
+            const d = new Date(); d.setDate(d.getDate() - 5);
+            const cutoff = d.toISOString().split('T')[0];
+            const q = firebaseService.query(firebaseService.bookingsCollection, firebaseService.where("date", "<", cutoff), firebaseService.limit(50));
+            const snap = await firebaseService.getDocs(q);
+            if (!snap.empty) {
                 const batch = firebaseService.writeBatch(firebaseService.db);
-                snapshot.docs.forEach(doc => { batch.delete(doc.ref); });
+                snap.docs.forEach(doc => batch.delete(doc.ref));
                 await batch.commit();
-                console.log(`[Cleanup] Stearse ${snapshot.size} rezervari vechi.`);
+                console.log(`[Cleanup] Sterse ${snap.size} rezervari vechi.`);
             }
         } catch (e) { console.error("[Cleanup Error]", e); }
     },
 
-    renderAdminDashboard() { 
-        if (!firebaseService.auth || !firebaseService.auth.currentUser) return;
+    // ─── ADMIN DASHBOARD ──────────────────────────────────────────────────────
+    renderAdminDashboard() {
+        if (!firebaseService.auth?.currentUser) return;
         const today = new Date().toISOString().split('T')[0];
-        const todayBookings = localBookings.filter(b => b.date === today).length;
-        const totalActive = localBookings.length;
-        
-        const elToday = document.getElementById('statToday');
-        if(elToday) elToday.textContent = todayBookings;
-        const elTotal = document.getElementById('statTotal');
-        if(elTotal) elTotal.textContent = totalActive;
-        
-        const sourceData = (adminViewMode === 'active') ? localBookings : historyBookings;
-        const searchInput = document.getElementById('adminSearchInput');
-        const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
-        const dateInput = document.getElementById('adminDateFilter');
-        const filterDate = dateInput ? dateInput.value : '';
+        const elT = document.getElementById('statToday'); if (elT) elT.textContent = localBookings.filter(b => b.date === today).length;
+        const elA = document.getElementById('statTotal'); if (elA) elA.textContent = localBookings.length;
 
-        const filteredData = sourceData.filter(b => {
-            const nameMatch = b.userName.toLowerCase().includes(searchTerm);
-            const phoneMatch = b.phoneNumber.includes(searchTerm);
-            const dateMatch = filterDate ? b.date === filterDate : true;
-            return (nameMatch || phoneMatch) && dateMatch;
+        this.renderBrokenMachineToggles();
+        this.renderHistogram();
+
+        const source = adminViewMode === 'active' ? localBookings : historyBookings;
+        const searchTerm = (document.getElementById('adminSearchInput')?.value || '').toLowerCase();
+        const filterDate = document.getElementById('adminDateFilter')?.value || '';
+        const filtered = source.filter(b => {
+            const nm = b.userName.toLowerCase().includes(searchTerm);
+            const pm = (b.phoneNumber || '').includes(searchTerm);
+            const dm = filterDate ? b.date === filterDate : true;
+            return (nm || pm) && dm;
         });
 
-        const elBadge = document.getElementById('listBadgeCount');
-        if(elBadge) elBadge.textContent = filteredData.length;
-
+        const badge = document.getElementById('listBadgeCount'); if (badge) badge.textContent = filtered.length;
         const toggle = document.getElementById('maintenanceToggle');
         const statusLabel = document.getElementById('maintenanceStatusLabel');
-        if(toggle && statusLabel) {
-             const isChecked = toggle.checked;
-             statusLabel.textContent = isChecked ? i18n.t("system_offline") : i18n.t("system_online");
-             if(isChecked) statusLabel.classList.add('offline'); else statusLabel.classList.remove('offline');
-        }
+        if (toggle && statusLabel) { statusLabel.textContent = toggle.checked ? i18n.t("system_offline") : i18n.t("system_online"); toggle.checked ? statusLabel.classList.add('offline') : statusLabel.classList.remove('offline'); }
 
-        const list = document.getElementById('adminBookingsList'); 
-        const bookings = [...filteredData].sort((a, b) => {
-             if (adminViewMode === 'history') {
-                 return b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime);
-             } else {
-                 return a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime);
-             }
-        });
-        
-        list.innerHTML = bookings.length ? bookings.map(b => {
-             const endMins = utils.timeToMins(b.startTime) + parseInt(b.duration);
-             const endTime = utils.minsToTime(endMins);
-             return `
-             <div class="admin-list-item">
-                <div class="admin-item-info">
-                    <strong>${utils.escapeHtml(b.userName)}</strong>
-                    <span><i class="fa-solid fa-phone"></i> ${utils.escapeHtml(b.phoneNumber)}</span>
-                    <span><i class="fa-regular fa-calendar"></i> ${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(b.startTime)}-${utils.escapeHtml(endTime)}</span>
-                    <span><i class="fa-solid fa-soap"></i> ${utils.escapeHtml(i18n.t(b.machineType === 'masina1' ? 'machine1' : b.machineType === 'masina2' ? 'machine2' : b.machineType === 'uscator1' ? 'dryer1' : 'dryer2'))}</span>
-                </div>
-                <button class="btn-delete-vip" data-delete-id="${utils.escapeHtml(b.id)}" title="Șterge">
-                    <i class="fa-solid fa-trash"></i>
-                </button>
-             </div>`;
-        }).join('') : `<div class="empty-state">${i18n.t("no_bookings_search")}</div>`; 
+        const bookings = [...filtered].sort((a, b) => adminViewMode === 'history' ? b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime) : a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
+        document.getElementById('adminBookingsList').innerHTML = bookings.length ? bookings.map(b => {
+            const end = utils.minsToTime(utils.timeToMins(b.startTime) + parseInt(b.duration));
+            return `<div class="admin-list-item"><div class="admin-item-info"><strong>${utils.escapeHtml(b.userName)}</strong><span><i class="fa-solid fa-phone"></i> ${utils.escapeHtml(b.phoneNumber)}</span><span><i class="fa-regular fa-calendar"></i> ${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(b.startTime)}-${utils.escapeHtml(end)}</span><span><i class="fa-solid fa-soap"></i> ${utils.escapeHtml(i18n.t(b.machineType === 'masina1' ? 'machine1' : b.machineType === 'masina2' ? 'machine2' : b.machineType === 'uscator1' ? 'dryer1' : 'dryer2'))}</span></div><button class="btn-delete-vip" data-delete-id="${utils.escapeHtml(b.id)}" title="Șterge"><i class="fa-solid fa-trash"></i></button></div>`;
+        }).join('') : `<div class="empty-state">${i18n.t("no_bookings_search")}</div>`;
+    },
+
+    renderBrokenMachineToggles() {
+        const container = document.getElementById('brokenMachinesSection');
+        if (!container) return;
+        const labels = { masina1: i18n.t('machine1'), masina2: i18n.t('machine2'), uscator1: i18n.t('dryer1'), uscator2: i18n.t('dryer2') };
+        const icons = { masina1: '🧺', masina2: '🧺', uscator1: '🌬️', uscator2: '🌬️' };
+        container.innerHTML = `<h4 style="margin:0 0 10px;font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;"><i class="fa-solid fa-screwdriver-wrench"></i> ${i18n.t('machine_status_title')}</h4><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">${Object.keys(logic.machines).map(key => {
+            const isBroken = !!brokenMachines[key];
+            return `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-secondary);padding:8px 10px;border-radius:8px;border:1px solid ${isBroken ? 'var(--danger)' : 'var(--border)'};">
+                <span style="font-size:0.85rem;">${icons[key]} ${labels[key]}</span>
+                <button class="broken-toggle" data-machine="${key}" style="font-size:0.75rem;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid ${isBroken ? 'var(--danger)' : 'var(--success)'};background:${isBroken ? 'rgba(220,38,38,0.1)' : 'rgba(34,197,94,0.1)'};color:${isBroken ? 'var(--danger)' : 'var(--success)'};">${isBroken ? i18n.t('broken_toggle_off') : i18n.t('broken_toggle_on')}</button>
+            </div>`;
+        }).join('')}</div>`;
+    },
+
+    renderHistogram() {
+        const container = document.getElementById('histogramSection');
+        if (!container) return;
+        const today = new Date().toISOString().split('T')[0];
+        const source = adminViewMode === 'active' ? localBookings : historyBookings;
+        const byMachine = {};
+        Object.keys(logic.machines).forEach(k => byMachine[k] = 0);
+        source.forEach(b => { if (byMachine[b.machineType] !== undefined) byMachine[b.machineType]++; });
+        const maxM = Math.max(...Object.values(byMachine), 1);
+        const byHour = new Array(24).fill(0);
+        const hourSrc = adminViewMode === 'active' ? localBookings.filter(b => b.date === today) : historyBookings;
+        hourSrc.forEach(b => { const h = parseInt((b.startTime || '0').split(':')[0]); if (h >= 0 && h < 24) byHour[h]++; });
+        const maxH = Math.max(...byHour, 1);
+        const colors = { masina1: '#4f46e5', masina2: '#7c3aed', uscator1: '#0891b2', uscator2: '#0284c7' };
+        const labels = { masina1: i18n.t('machine1'), masina2: i18n.t('machine2'), uscator1: i18n.t('dryer1'), uscator2: i18n.t('dryer2') };
+        container.innerHTML = `
+            <h4 style="margin:0 0 10px;font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;"><i class="fa-solid fa-chart-bar"></i> ${i18n.t('stats_by_machine')}</h4>
+            <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px;">
+                ${Object.keys(logic.machines).map(key => `<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:0.8rem;min-width:75px;color:var(--text-muted);">${labels[key]}</span><div style="flex:1;background:var(--bg-secondary);border-radius:4px;height:22px;overflow:hidden;"><div style="width:${byMachine[key]/maxM*100}%;height:100%;background:${colors[key]};border-radius:4px;transition:width 0.6s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;min-width:${byMachine[key]>0?'22px':'0'};"> ${byMachine[key]>0?`<span style="color:#fff;font-size:0.75rem;font-weight:700;">${byMachine[key]}</span>`:''}</div></div></div>`).join('')}
+            </div>
+            <h4 style="margin:0 0 10px;font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;"><i class="fa-solid fa-clock"></i> ${i18n.t('stats_by_hour')} ${adminViewMode==='active'?'(azi)':'(istoric)'}</h4>
+            <div style="display:flex;align-items:flex-end;gap:2px;height:70px;padding-bottom:18px;">
+                ${byHour.map((c, h) => `<div style="flex:1;min-width:18px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;" title="${h}:00 — ${c}"><div style="width:100%;background:${c>0?'#4f46e5':'var(--bg-secondary)'};height:${c>0?Math.max(c/maxH*50,6):4}px;border-radius:2px 2px 0 0;transition:height 0.4s;"></div><span style="font-size:0.58rem;color:var(--text-muted);margin-top:2px;">${h%4===0?h+'h':''}</span></div>`).join('')}
+            </div>`;
     }
 };
 
