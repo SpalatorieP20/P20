@@ -8,7 +8,7 @@
 
 /* DARK MODE */
 body.dark-mode {
-    --background: #0f172a; 
+    --background: #0f172a; /* Dark Slate */
     --card-bg: #1e293b;
     --text-main: #f1f5f9;
     --text-muted: #94a3b8;
@@ -19,7 +19,7 @@ body.dark-mode {
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: 'Inter', sans-serif; background: var(--background); color: var(--text-main); padding-bottom: 20px; transition: background 0.3s, color 0.3s; }
 
-
+/* Loader */
 .app-loader {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background: var(--background); z-index: 9999; display: flex; flex-direction: column;
@@ -38,7 +38,7 @@ body.dark-mode .spinner { border-color: #334155; border-top-color: var(--primary
 .maintenance-screen {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background: rgba(255, 255, 255, 0.98); 
-    z-index: 2000; 
+    z-index: 2000; /* Sub modale (3000) */
     display: flex; justify-content: center; align-items: center; text-align: center;
     backdrop-filter: blur(5px);
 }
@@ -82,7 +82,7 @@ body.dark-mode .btn-icon-only:hover { background: #1e293b; border-color: var(--p
     letter-spacing: 0.5px;
 }
 body.dark-mode .credit-tag {
-    color: #94a3b8; 
+    color: #94a3b8; /* Muted text in dark mode */
 }
 
 /* Layout */
@@ -112,7 +112,7 @@ input[type="date"], input[type="time"], #duration { padding-left: 10px; }
 body.dark-mode input[type="date"] { color-scheme: dark; }
 body.dark-mode input[type="time"] { color-scheme: dark; }
 
-
+/* Visual Selector */
 .visual-selector {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -270,11 +270,21 @@ input:checked + .slider:before { transform: translateX(24px); }
 
 /* Responsive */
 @media (max-width: 1024px) { .main-layout { grid-template-columns: 1fr; } .sidebar { display: grid; grid-template-columns: 1fr 1fr; } .booking-card { grid-column: 1 / -1; } }
-@media (max-width: 768px) { .sidebar { display: flex; flex-direction: column; } }
+@media (max-width: 768px) { 
+    .sidebar { display: flex; flex-direction: column; }
+    .main-header { padding: 15px; }
+    .app-container { padding: 10px; }
+}
 
 /* Fix mobil data/durata */
 @media (max-width: 500px) {
     .form-row { grid-template-columns: 1fr; gap: 15px; }
+    .modal-box { padding: 15px; width: 95%; }
+    .modal-actions { display: flex; flex-direction: column; gap: 10px; }
+    #phoneModal .modal-actions { grid-template-columns: 1fr !important; display: flex; flex-direction: column; }
+    .btn-action { width: 100%; }
+    .schedule-header { flex-direction: column; gap: 10px; }
+    .visual-selector { grid-template-columns: 1fr; }
 }
 
 @keyframes pulse-blue { 0% { box-shadow: 0 0 0 0 rgba(37,99,235,0.7); } 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0); } }
@@ -695,8 +705,8 @@ body.dark-mode .version-tag {
 }
 
 @media (max-width: 480px) {
-    .version-tag {
-        display: none; /* Hide on very small screens if needed, or adjust */
-    }
+    .header-content { flex-direction: column; gap: 15px; }
+    .header-actions { width: 100%; justify-content: center; flex-wrap: wrap; }
+    .logo-area { width: 100%; justify-content: center; text-align: center; }
+    .version-tag { margin-right: 0; }
 }
-
