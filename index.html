@@ -8,7 +8,7 @@
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Spălătorie Cămin</title>
+    <title data-i18n="app_title">Spălătorie Cămin</title>
 
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
@@ -22,8 +22,8 @@
 
     <div id="appLoader" class="app-loader">
         <div class="spinner"></div>
-        <p id="loaderText">Se conectează...</p>
-        <button id="reloadBtn" class="btn-ghost" style="display:none; margin-top:15px;">Reîncearcă</button>
+        <p id="loaderText" data-i18n="connecting">Se conectează...</p>
+        <button id="reloadBtn" class="btn-ghost" style="display:none; margin-top:15px;" data-i18n="retry">Reîncearcă</button>
     </div>
 
 
@@ -34,13 +34,13 @@
 
             <i class="fa-solid fa-screwdriver-wrench fa-4x fa-bounce"></i>
 
-            <h1>Mentenanță în Curs</h1>
+            <h1 data-i18n="maintenance_title">Mentenanță în Curs</h1>
 
-            <p>Revenim imediat! Facem curățenie în sistem. 🧹</p>
+            <p data-i18n="maintenance_desc1">Revenim imediat! Facem curățenie în sistem. 🧹</p>
 
-            <p class="maintenance-sub">Ne vedem în câteva minute.</p>
+            <p class="maintenance-sub" data-i18n="maintenance_desc2">Ne vedem în câteva minute.</p>
 
-            <button id="maintenanceAdminBtn" class="btn-ghost">Sunt Administrator</button>
+            <button id="maintenanceAdminBtn" class="btn-ghost" data-i18n="im_admin">Sunt Administrator</button>
 
         </div>
 
@@ -59,15 +59,16 @@
                     <i class="fa-solid fa-soap fa-2x"></i>
 
                     <div>
-                        <h1>Spălătorie Cămin</h1>
-                        <p>Rezervări Online</p>
-                        <small class="credit-tag">Made by Emi & Robert</small>
+                        <h1 data-i18n="app_title">Spălătorie Cămin</h1>
+                        <p data-i18n="online_reservations">Rezervări Online</p>
+                        <small class="credit-tag" data-i18n="made_by">Made by Emi & Robert</small>
                     </div>
 
                 </div>
 
                 <div class="header-actions">
                     <span class="version-tag">Beta 5.0</span>
+                    <button type="button" id="langToggleBtn" class="btn-icon-only" title="Schimbă limba / Change language" aria-label="Schimbă limba (RO / EN)" style="font-weight: bold;">EN</button>
                     <button id="themeToggleBtn" class="btn-icon-only" title="Schimbă Tema" aria-label="Schimbă tema (întunecat / deschis)">
                         <i class="fa-solid fa-moon" aria-hidden="true"></i>
                     </button>
@@ -90,7 +91,7 @@
 
                     <div class="card-header">
 
-                        <h2><i class="fa-regular fa-calendar-plus"></i> Rezervare Nouă</h2>
+                        <h2><i class="fa-regular fa-calendar-plus"></i> <span data-i18n="new_reservation">Rezervare Nouă</span></h2>
 
                     </div>
 
@@ -98,13 +99,13 @@
 
                         <div class="form-group">
 
-                            <label for="userName">Nume și Cameră</label>
+                            <label for="userName" data-i18n="name_room">Nume și Cameră</label>
 
                             <div class="input-wrapper">
 
                                 <i class="fa-solid fa-user"></i>
 
-                                <input type="text" id="userName" required placeholder="Ex: Popescu (304)" autocomplete="off">
+                                <input type="text" id="userName" required placeholder="Ex: Popescu (304)" data-i18n-placeholder="name_placeholder" autocomplete="off">
 
                             </div>
 
@@ -112,16 +113,16 @@
 
                         <div class="form-group">
 
-                            <label for="userPin">PIN Secret (4 cifre)</label>
+                            <label for="userPin" data-i18n="secret_pin">PIN Secret (4 cifre)</label>
 
                             <div class="input-wrapper">
 
                                 <i class="fa-solid fa-key"></i>
 
-                                <input type="text" id="userPin" required placeholder="Ex: 1234" maxlength="4" pattern="\d{4}" title="Introdu exact 4 cifre" autocomplete="off">
+                                <input type="text" id="userPin" required placeholder="Ex: 1234" data-i18n-placeholder="pin_placeholder" maxlength="4" pattern="\d{4}" title="Introdu exact 4 cifre" data-i18n-title="pin_4_digits_err" autocomplete="off">
 
                             </div>
-                            <small style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 4px;">Vei folosi acest cod pentru a șterge rezervarea.</small>
+                            <small style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 4px;" data-i18n="pin_helper">Vei folosi acest cod pentru a șterge rezervarea.</small>
 
                         </div>
 
@@ -129,26 +130,26 @@
 
                         <div class="form-group">
 
-                            <label for="phoneNumber">Telefon</label>
+                            <label for="phoneNumber" data-i18n="phone">Telefon</label>
 
                             <div class="input-wrapper">
 
                                 <i class="fa-solid fa-phone"></i>
 
-                                <input type="tel" id="phoneNumber" placeholder="07xx xxx xxx" maxlength="10" pattern="07[0-9]{8}" inputmode="numeric" title="10 cifre, începând cu 07" autocomplete="tel">
+                                <input type="tel" id="phoneNumber" placeholder="07xx xxx xxx" data-i18n-placeholder="phone_placeholder" maxlength="10" pattern="07[0-9]{8}" inputmode="numeric" title="10 cifre, începând cu 07" data-i18n-title="invalid_phone_err" autocomplete="tel">
 
                             </div>
 
                             <div class="gdpr-consent-wrapper" style="margin-top: 8px; display: flex; align-items: start; gap: 8px;">
                                 <input type="checkbox" id="skipPhone" style="width: 16px; height: 16px; margin-top: 3px;">
                                 <label for="skipPhone" style="font-size: 0.9rem; line-height: 1.4; color: var(--text-muted); cursor: pointer;">
-                                    Nu doresc să introduc numărul de telefon.
+                                    <span data-i18n="skip_phone">Nu doresc să introduc numărul de telefon.</span>
                                 </label>
                             </div>
 
                             <div class="privacy-note" style="background: rgba(var(--primary-rgb), 0.1); border-left: 3px solid var(--primary); padding: 10px; margin-top: 10px; border-radius: 4px; font-size: 0.85rem; color: var(--text-color);">
-                                <p style="margin-bottom: 5px;"><strong>Notă Confidențialitate:</strong> Datele sunt folosite doar pentru organizarea programului și pentru contact în caz de probleme.</p>
-                                <p>Dacă nu dorești să introduci date personale, completează cel puțin un nume pentru rezervare și folosește varianta oficială pentru restul (foaia de jos).</p>
+                                <p style="margin-bottom: 5px;"><strong data-i18n="privacy_note">Notă Confidențialitate:</strong> <span data-i18n="privacy_desc1">Datele sunt folosite doar pentru organizarea programului și pentru contact în caz de probleme.</span></p>
+                                <p><span data-i18n="privacy_desc2">Dacă nu dorești să introduci date personale, completează cel puțin un nume pentru rezervare și folosește varianta oficială pentru restul (foaia de jos).</span></p>
                             </div>
 
                         </div>
@@ -156,37 +157,36 @@
 
 
                         <div class="form-group">
-                            <label>Echipament</label>
+                            <label data-i18n="equipment">Echipament</label>
                             <div class="visual-selector" id="visualSelector">
                                 <div class="selector-card" data-value="masina1">
                                     <div class="icon">🧺</div>
-                                    <span>Mașina 1</span>
+                                    <span data-i18n="machine1">Mașina 1</span>
                                     <div class="live-status" id="status-masina1">...</div>
                                 </div>
                                 <div class="selector-card" data-value="masina2">
                                     <div class="icon">🧺</div>
-                                    <span>Mașina 2</span>
-                                    <div style="font-size: 0.7rem; color: #f59e0b; font-weight: bold; margin-bottom: 2px;">Posibil nefuncțională</div>
+                                    <span data-i18n="machine2">Mașina 2</span>
                                     <div class="live-status" id="status-masina2">...</div>
                                 </div>
                                 <div class="selector-card" data-value="uscator1">
                                     <div class="icon">🌬️</div>
-                                    <span>Uscător Jos</span>
+                                    <span data-i18n="dryer1">Uscător 1</span>
                                     <div class="live-status" id="status-uscator1">...</div>
                                 </div>
                                 <div class="selector-card" data-value="uscator2">
                                     <div class="icon">🌬️</div>
-                                    <span>Uscător Sus</span>
+                                    <span data-i18n="dryer2">Uscător 2</span>
                                     <div class="live-status" id="status-uscator2">...</div>
                                 </div>
                             </div>
-                            
+                            <!-- Hidden select for compatibility with existing logic -->
                             <select id="machineType" required style="display:none; opacity:0; height:1px;">
                                 <option value="">Selectat</option>
-                                <option value="masina1">Mașină 1</option>
-                                <option value="masina2">Mașină 2</option>
-                                <option value="uscator1">Uscător Jos</option>
-                                <option value="uscator2">Uscător Sus</option>
+                                <option value="masina1" data-i18n="machine1">Mașină 1</option>
+                                <option value="masina2" data-i18n="machine2">Mașină 2</option>
+                                <option value="uscator1" data-i18n="dryer1">Uscător 1</option>
+                                <option value="uscator2" data-i18n="dryer2">Uscător 2</option>
                             </select>
                         </div>
 
@@ -196,7 +196,7 @@
 
                             <div class="form-group">
 
-                                <label for="bookingDate">Data</label>
+                                <label for="bookingDate" data-i18n="date">Data</label>
 
                                 <input type="date" id="bookingDate" required>
 
@@ -204,7 +204,7 @@
 
                             <div class="form-group">
 
-                                <label for="duration">Durată</label>
+                                <label for="duration" data-i18n="duration">Durată</label>
 
                                 <select id="duration" required>
                                     
@@ -224,7 +224,7 @@
 
                         <div class="form-group">
 
-                            <label for="startTime">Ora de început</label>
+                            <label for="startTime" data-i18n="start_time">Ora de început</label>
 
                             <input type="time" id="startTime" required class="time-input">
 
@@ -234,7 +234,7 @@
 
                         <button type="submit" class="btn-primary">
 
-                            <i class="fa-solid fa-check"></i> Rezervă Acum
+                            <i class="fa-solid fa-check"></i> <span data-i18n="book_now">Rezervă Acum</span>
 
                         </button>
 
@@ -248,7 +248,7 @@
 
                     <div class="card-header">
 
-                        <h2><i class="fa-solid fa-list-check"></i> Rezervările Mele</h2>
+                        <h2><i class="fa-solid fa-list-check"></i> <span data-i18n="my_bookings">Rezervările Mele</span></h2>
 
                     </div>
 
@@ -262,7 +262,7 @@
 
                     <div class="card-header">
 
-                        <h2><i class="fa-solid fa-calendar-week"></i> Zilele Următoare</h2>
+                        <h2><i class="fa-solid fa-calendar-week"></i> <span data-i18n="upcoming_days">Zilele Următoare</span></h2>
 
                     </div>
 
@@ -278,7 +278,7 @@
 
                 <div class="schedule-header">
 
-                    <h2><i class="fa-regular fa-clock"></i> Orar (24h)</h2>
+                    <h2><i class="fa-regular fa-clock"></i> <span data-i18n="schedule_24h">Orar (24h)</span></h2>
 
                     <div class="date-navigator">
 
@@ -316,7 +316,7 @@
 
             <button type="button" class="modal-close" aria-label="Închide">&times;</button>
 
-            <h3><i class="fa-solid fa-address-card"></i> Contact</h3>
+            <h3><i class="fa-solid fa-address-card"></i> <span data-i18n="contact">Contact</span></h3>
 
             <div class="modal-body text-center">
 
@@ -325,9 +325,9 @@
                 <p id="modalPhoneNumber" class="phone-display">07xx...</p>
 
                 <div class="modal-actions" style="grid-template-columns: 1fr 1fr 1fr;">
-                    <a id="callPhoneBtn" href="#" class="btn-action call"><i class="fa-solid fa-phone"></i> Sună Acum</a>
-                    <button id="copyPhoneBtn" class="btn-action copy"><i class="fa-solid fa-copy"></i> Copie</button>
-                    <button id="requestDeleteBtn" class="btn-action delete"><i class="fa-solid fa-trash"></i> Șterge</button>
+                    <a id="callPhoneBtn" href="#" class="btn-action call"><i class="fa-solid fa-phone"></i> <span data-i18n="call_now">Sună Acum</span></a>
+                    <button id="copyPhoneBtn" class="btn-action copy"><i class="fa-solid fa-copy"></i> <span data-i18n="copy">Copie</span></button>
+                    <button id="requestDeleteBtn" class="btn-action delete"><i class="fa-solid fa-trash"></i> <span data-i18n="delete">Șterge</span></button>
                 </div>
 
             </div>
@@ -338,15 +338,15 @@
 
         <div id="confirmModal" class="modal-box" style="display: none;">
 
-            <h3><i class="fa-solid fa-triangle-exclamation"></i> Confirmare</h3>
+            <h3><i class="fa-solid fa-triangle-exclamation"></i> <span data-i18n="confirmation">Confirmare</span></h3>
 
-            <p>Ești sigur că vrei să ștergi această rezervare?</p>
+            <p data-i18n="confirm_delete_msg">Ești sigur că vrei să ștergi această rezervare?</p>
 
             <div class="modal-actions">
 
-                <button id="cancelDeleteBtn" class="btn-action secondary">Nu, renunț</button>
+                <button id="cancelDeleteBtn" class="btn-action secondary" data-i18n="no_cancel">Nu, renunț</button>
 
-                <button id="confirmDeleteBtn" class="btn-action delete">Da, șterge</button>
+                <button id="confirmDeleteBtn" class="btn-action delete" data-i18n="yes_delete">Da, șterge</button>
 
             </div>
 
@@ -354,12 +354,12 @@
 
         <div id="deletePinModal" class="modal-box" style="display: none;">
             <button type="button" class="modal-close" aria-label="Închide">&times;</button>
-            <h3><i class="fa-solid fa-lock"></i> Ștergere</h3>
-            <p>Introdu codul PIN (4 cifre) setat la rezervare:</p>
+            <h3><i class="fa-solid fa-lock"></i> <span data-i18n="delete_title">Ștergere</span></h3>
+            <p data-i18n="delete_pin_msg">Introdu codul PIN (4 cifre) setat la rezervare:</p>
             <input type="password" id="deletePinInput" placeholder="PIN..." class="full-width-input" maxlength="4" style="text-align: center; font-size: 1.5rem; letter-spacing: 5px;">
             <div class="modal-actions">
-                <button id="cancelPinDeleteBtn" class="btn-action secondary">Anulează</button>
-                <button id="confirmPinDeleteBtn" class="btn-action delete">Șterge</button>
+                <button id="cancelPinDeleteBtn" class="btn-action secondary" data-i18n="cancel">Anulează</button>
+                <button id="confirmPinDeleteBtn" class="btn-action delete" data-i18n="delete">Șterge</button>
             </div>
         </div>
 
@@ -371,12 +371,12 @@
 
             <div id="adminLoginForm">
 
-                <h3><i class="fa-solid fa-user-shield"></i> Admin</h3>
+                <h3><i class="fa-solid fa-user-shield"></i> <span data-i18n="admin">Admin</span></h3>
 
-                <input type="email" id="adminEmail" placeholder="Email Admin" style="margin-bottom: 10px; width: 100%; padding: 10px; border:1px solid #ddd; border-radius:6px;">
-                <input type="password" id="adminPassword" placeholder="Parola Admin" style="margin-bottom: 15px; width: 100%; padding: 10px; border:1px solid #ddd; border-radius:6px;">
+                <input type="email" id="adminEmail" placeholder="Email Admin" data-i18n-placeholder="admin_email" style="margin-bottom: 10px; width: 100%; padding: 10px; border:1px solid #ddd; border-radius:6px;">
+                <input type="password" id="adminPassword" placeholder="Parola Admin" data-i18n-placeholder="admin_password" style="margin-bottom: 15px; width: 100%; padding: 10px; border:1px solid #ddd; border-radius:6px;">
 
-                <button type="button" id="adminLoginBtn" class="btn-primary"><i class="fa-solid fa-right-to-bracket"></i> Conectare</button>
+                <button type="button" id="adminLoginBtn" class="btn-primary"><i class="fa-solid fa-right-to-bracket"></i> <span data-i18n="login">Conectare</span></button>
 
             </div>
 
@@ -385,8 +385,8 @@
             <div id="adminContent" style="display: none;" class="admin-dashboard">
                 <div class="dashboard-header">
                     <div class="header-title">
-                        <h2><i class="fa-solid fa-user-shield"></i> Panou Admin</h2>
-                        <p class="subtitle">Gestionare & Statistici</p>
+                        <h2><i class="fa-solid fa-user-shield"></i> <span data-i18n="admin_panel">Panou Admin</span></h2>
+                        <p class="subtitle" data-i18n="management_stats">Gestionare & Statistici</p>
                     </div>
                 </div>
 
@@ -394,38 +394,38 @@
                     <div class="stat-card">
                         <div class="stat-icon"><i class="fa-solid fa-calendar-check"></i></div>
                         <div class="stat-data">
-                            <span class="stat-label">Rezervări Azi</span>
+                            <span class="stat-label" data-i18n="bookings_today">Rezervări Azi</span>
                             <strong class="stat-value" id="statToday">0</strong>
                         </div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-icon"><i class="fa-solid fa-list-ol"></i></div>
                         <div class="stat-data">
-                            <span class="stat-label">Total Active</span>
+                            <span class="stat-label" data-i18n="total_active">Total Active</span>
                             <strong class="stat-value" id="statTotal">0</strong>
                         </div>
                     </div>
                     <div class="stat-card maintenance-card">
                         <div class="maintenance-header">
-                            <span class="stat-label">Mentenanță</span>
+                            <span class="stat-label" data-i18n="maintenance">Mentenanță</span>
                             <label class="switch vip-switch">
                                 <input type="checkbox" id="maintenanceToggle">
                                 <span class="slider round"></span>
                             </label>
                         </div>
-                        <small id="maintenanceStatusLabel" class="status-text">Sistem Online</small>
+                        <small id="maintenanceStatusLabel" class="status-text" data-i18n="system_online">Sistem Online</small>
                     </div>
                 </div>
 
                 <div class="admin-tabs">
-                    <button class="tab-btn active" id="tabActive">Active</button>
-                    <button class="tab-btn" id="tabHistory">Istoric</button>
+                    <button class="tab-btn active" id="tabActive" data-i18n="active">Active</button>
+                    <button class="tab-btn" id="tabHistory" data-i18n="history">Istoric</button>
                 </div>
 
                 <div class="list-controls">
                     <div class="search-wrapper">
                         <i class="fa-solid fa-search"></i>
-                        <input type="text" id="adminSearchInput" placeholder="Caută nume sau telefon...">
+                        <input type="text" id="adminSearchInput" placeholder="Caută nume sau telefon..." data-i18n-placeholder="search_placeholder">
                     </div>
                     <div class="filter-wrapper">
                          <input type="date" id="adminDateFilter" title="Filtrează după dată">
@@ -433,11 +433,11 @@
                 </div>
 
                 <button id="exportCsvBtn" class="btn-ghost" style="width:100%; margin-bottom:15px; border-color:var(--success); color:var(--success);">
-                    <i class="fa-solid fa-file-csv"></i> Descarcă Raport Excel (CSV)
+                    <i class="fa-solid fa-file-csv"></i> <span data-i18n="download_csv">Descarcă Raport Excel (CSV)</span>
                 </button>
 
                 <div class="list-header">
-                    <h3 id="listTitle">Rezervări Active</h3>
+                    <h3 id="listTitle" data-i18n="active_bookings">Rezervări Active</h3>
                     <div class="list-badge" id="listBadgeCount">0</div>
                 </div>
 
@@ -446,7 +446,7 @@
                 </div>
 
                 <button id="adminLogoutBtn" class="btn-logout-full">
-                    <i class="fa-solid fa-power-off"></i> Deconectare
+                    <i class="fa-solid fa-power-off"></i> <span data-i18n="logout">Deconectare</span>
                 </button>
             </div>
 
@@ -466,4 +466,3 @@
 
 
 </html>
-
