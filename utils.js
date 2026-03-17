@@ -17,7 +17,8 @@ export const utils = {
     },
     formatDateRO(dateStr) {
         const options = { weekday: 'long', day: 'numeric', month: 'long' };
-        return new Date(dateStr + 'T12:00:00').toLocaleDateString('ro-RO', options);
+        const lang = localStorage.getItem('lang') === 'en' ? 'en-US' : 'ro-RO';
+        return new Date(dateStr + 'T12:00:00').toLocaleDateString(lang, options);
     },
     timeToMins(time) { 
         if(!time) return 0;
