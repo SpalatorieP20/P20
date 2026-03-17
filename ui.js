@@ -1,6 +1,7 @@
 import { utils } from './utils.js';
 import { logic } from './logic.js';
 import { firebaseService } from './firebase-service.js';
+import { i18n } from './i18n.js';
 
 let localBookings = [];
 let historyBookings = []; 
@@ -33,7 +34,7 @@ export const ui = {
             const loader = document.getElementById('appLoader');
             if(loader && loader.style.display !== 'none') {
                 const text = document.getElementById('loaderText');
-                if(text) text.textContent = "Conexiunea durează mult...";
+                if(text) text.textContent = i18n.t("connection_takes_long");
                 const btn = document.getElementById('reloadBtn');
                 if(btn) {
                     btn.style.display = 'inline-block';
@@ -137,12 +138,28 @@ export const ui = {
                     dateInput.value = realToday;
                     this.updateDateDisplay();
                     this.renderAll();
-                    utils.showToast('Zi nouă! Calendarul s-a actualizat.');
+                    utils.showToast(i18n.t("new_day_calendar_updated"));
                 }
             }
         }, 60000);
     },
 
+
+
+    applyTranslations() {
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (i18n.t(key)) el.textContent = i18n.t(key);
+        });
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+            const key = el.getAttribute('data-i18n-placeholder');
+            if (i18n.t(key)) el.setAttribute('placeholder', i18n.t(key));
+        });
+        document.querySelectorAll('[data-i18n-title]').forEach(el => {
+            const key = el.getAttribute('data-i18n-title');
+            if (i18n.t(key)) el.setAttribute('title', i18n.t(key));
+        });
+    },
     updateMachineStatus() {
         const today = new Date().toISOString().split('T')[0];
         const now = new Date();
@@ -167,10 +184,10 @@ export const ui = {
                 const endMins = startMins + parseInt(activeBooking.duration);
                 const remaining = endMins - currentMins;
                 
-                statusEl.textContent = `Ocupat (${remaining} min)`;
+                statusEl.textContent = `${i18n.t("busy")} (${remaining} ${i18n.t("min")})`;
                 statusEl.className = 'live-status busy';
             } else {
-                statusEl.textContent = 'Liber';
+                statusEl.textContent = i18n.t("free");
                 statusEl.className = 'live-status free';
             }
         });
@@ -192,7 +209,7 @@ export const ui = {
 
                 if (machine && date && start) {
                     if (!logic.isSlotFree(machine, date, start, duration, localBookings)) {
-                        utils.showToast('⚠️ Ora selectată se suprapune!', 'error');
+                        utils.showToast(i18n.t("overlap_warning"), 'error');
                         timeInput.style.borderColor = 'var(--danger)';
                     } else {
                         timeInput.style.borderColor = 'var(--success)';
@@ -237,7 +254,7 @@ export const ui = {
                     phoneInput.value = '';
                     phoneInput.disabled = true;
                     phoneInput.style.borderColor = '';
-                    phoneInput.placeholder = "Nu este necesar";
+                    phoneInput.placeholder = i18n.t("not_required");
                 } else {
                     phoneInput.disabled = false;
                     phoneInput.placeholder = "07xx xxx xxx";
@@ -302,13 +319,13 @@ export const ui = {
             const isChecked = e.target.checked;
             const statusLabel = document.getElementById('maintenanceStatusLabel');
             if(statusLabel) {
-               statusLabel.textContent = isChecked ? "Sistem Offline (Mentenanță)" : "Sistem Online";
+               statusLabel.textContent = isChecked ? i18n.t("system_offline") : i18n.t("system_online");
                if(isChecked) statusLabel.classList.add('offline'); else statusLabel.classList.remove('offline');
             }
 
             try {
                 await firebaseService.setDoc(firebaseService.doc(firebaseService.db, "settings", "appState"), { maintenance: isChecked });
-                utils.showToast(isChecked ? "Mentenanță ACTIVATĂ" : "Mentenanță DEZACTIVATĂ");
+                utils.showToast(isChecked ? i18n.t("maintenance_on") : i18n.t("maintenance_off"));
             } catch (err) {
                 console.error(err);
                 utils.showToast("Eroare la salvarea setării.", "error");
@@ -342,14 +359,14 @@ export const ui = {
              adminViewMode = 'active';
              document.getElementById('tabActive').classList.add('active');
              document.getElementById('tabHistory').classList.remove('active');
-             document.getElementById('listTitle').textContent = "Rezervări Active";
+             document.getElementById('listTitle').textContent = i18n.t("active_bookings");
              this.renderAdminDashboard();
         };
         document.getElementById('tabHistory').onclick = async () => {
              adminViewMode = 'history';
              document.getElementById('tabHistory').classList.add('active');
              document.getElementById('tabActive').classList.remove('active');
-             document.getElementById('listTitle').textContent = "Istoric (Se încarcă...)";
+             document.getElementById('listTitle').textContent = i18n.t("history_loading");
              const listEl = document.getElementById('adminBookingsList');
              listEl.innerHTML = '<div class="empty-state history-loading"><div class="spinner" style="width:32px;height:32px;border-width:3px;margin:0 auto 12px;"></div>Se încarcă istoricul...</div>';
              const badgeEl = document.getElementById('listBadgeCount');
@@ -368,12 +385,12 @@ export const ui = {
                      historyBookings.push({ ...doc.data(), id: doc.id });
                  });
 
-                 document.getElementById('listTitle').textContent = "Istoric Rezervări";
+                 document.getElementById('listTitle').textContent = i18n.t("history_bookings");
                  this.renderAdminDashboard();
              } catch (e) {
                  console.error(e);
-                 utils.showToast("Eroare încărcare istoric.", "error");
-                 document.getElementById('listTitle').textContent = "Istoric Rezervări";
+                 utils.showToast(i18n.t("history_error"), "error");
+                 document.getElementById('listTitle').textContent = i18n.t("history_bookings");
                  listEl.innerHTML = '<div class="empty-state">Eroare la încărcare. Încearcă din nou.</div>';
              }
         };
@@ -386,7 +403,7 @@ export const ui = {
                 const dataToExport = (adminViewMode === 'active') ? localBookings : historyBookings;
                 
                 if (dataToExport.length === 0) {
-                    utils.showToast("Nu sunt date de exportat!", "error");
+                    utils.showToast(i18n.t("no_export_data"), "error");
                     return;
                 }
 
@@ -399,7 +416,7 @@ export const ui = {
                         utils.escapeCsvCell(row.startTime),
                         utils.escapeCsvCell(row.userName),
                         utils.escapeCsvCell(row.phoneNumber),
-                        utils.escapeCsvCell(logic.machines[row.machineType]),
+                        utils.escapeCsvCell(i18n.t(row.machineType === 'masina1' ? 'machine1' : row.machineType === 'masina2' ? 'machine2' : row.machineType === 'uscator1' ? 'dryer1' : 'dryer2')),
                         utils.escapeCsvCell(row.duration)
                     ];
                     csvContent += rowData.join(",") + "\n";
@@ -441,10 +458,10 @@ export const ui = {
         document.getElementById('adminLogoutBtn').onclick = () => { 
             if (!firebaseService.auth) return;
             firebaseService.signOut(firebaseService.auth).then(() => {
-                utils.showToast("Deconectare reușită");
+                utils.showToast(i18n.t("logout_success"));
             }).catch((error) => {
                 console.error(error);
-                utils.showToast("Eroare la deconectare", "error");
+                utils.showToast(i18n.t("logout_error"), "error");
             });
         };
     },
@@ -483,7 +500,7 @@ export const ui = {
         
         const today = new Date().toISOString().split('T')[0];
         if (newDateStr < today) {
-            utils.showToast('Nu poți vedea programul din trecut.', 'error');
+            utils.showToast(i18n.t("cannot_see_past"), 'error');
             return;
         }
 
@@ -496,7 +513,7 @@ export const ui = {
     updateDateDisplay() { 
         const display = document.getElementById('currentDateDisplay'); 
         const today = new Date().toISOString().split('T')[0]; 
-        display.textContent = (this.currentDate === today) ? "Astăzi" : utils.formatDateRO(this.currentDate); 
+        display.textContent = (this.currentDate === today) ? i18n.t("today_display") : utils.formatDateRO(this.currentDate); 
     },
 
     // --- 3. HANDLE BOOKING (CORECTAT ȘI OPTIMIZAT) ---
@@ -518,9 +535,9 @@ export const ui = {
             const duration = parseInt(document.getElementById('duration').value);
 
             // Validări
-            if (!start) throw new Error("Te rog selectează ora!");
-            if (!machine) throw new Error("Alege o mașină!");
-            if (userName.length < 3) throw new Error("Introdu un nume complet (minim 3 litere).");
+            if (!start) throw new Error(i18n.t("select_time_err"));
+            if (!machine) throw new Error(i18n.t("choose_machine_err"));
+            if (userName.length < 3) throw new Error(i18n.t("short_name_err"));
 
             userName = utils.capitalize(userName);
             let cleanPhone = phone.replace(/\D/g, '');
@@ -530,20 +547,20 @@ export const ui = {
                 cleanPhone = "-";
             } else {
                 if (cleanPhone.length !== 10 || !cleanPhone.startsWith('07')) { 
-                    throw new Error("Număr invalid! Trebuie 10 cifre și să înceapă cu 07.");
+                    throw new Error(i18n.t("invalid_phone_err"));
                 }
             }
 
             if (!pin || pin.length !== 4 || isNaN(pin)) {
-                throw new Error("PIN-ul trebuie să aibă exact 4 cifre.");
+                throw new Error(i18n.t("pin_4_digits_err"));
             }
             
             if (!logic.canUserBook(userName, localBookings)) {
-                throw new Error("Ai atins limita de 4 rezervări active!");
+                throw new Error(i18n.t("limit_reached_err"));
             }
 
             if (!logic.isSlotFree(machine, this.currentDate, start, duration, localBookings)) {
-                 throw new Error("Intervalul este deja ocupat (verifica orarul).");
+                 throw new Error(i18n.t("slot_taken_err"));
             }
 
             // Tranzacție
@@ -553,7 +570,7 @@ export const ui = {
                 
                 const bookingDoc = await transaction.get(bookingRef);
                 if (bookingDoc.exists()) {
-                    throw "Intervalul este deja rezervat!";
+                    throw i18n.t("slot_taken_transaction_err");
                 }
 
                 const pinHash = await utils.hashPin(pin);
@@ -580,7 +597,7 @@ export const ui = {
                 durata: duration
             });
 
-            utils.showToast('Rezervare salvată cu succes!');
+            utils.showToast(i18n.t("booking_success"));
             e.target.reset(); 
             
             // Re-umplem câmpurile
@@ -591,7 +608,7 @@ export const ui = {
             
         } catch (error) { 
             console.error(error); 
-            let msg = 'Eroare server.';
+            let msg = i18n.t("server_error");
             if (typeof error === 'string') msg = error;
             else if (error.message) msg = error.message;
             utils.showToast(msg, 'error'); 
@@ -627,11 +644,7 @@ export const ui = {
         Object.keys(logic.machines).forEach(machineKey => {
             const col = document.createElement('div'); col.className = 'machine-column';
             const header = document.createElement('div'); header.className = 'machine-header';
-            let warningText = "";
-            if (machineKey === 'masina2') {
-                warningText = `<div style="font-size: 0.7rem; color: #f59e0b; margin-top:2px;">Posibil nefuncțională</div>`;
-            }
-            header.innerHTML = `<small>${machineKey.includes('masina') ? '🧺' : '🌬️'}</small><br>${logic.machines[machineKey]}${warningText}`; col.appendChild(header);
+            header.innerHTML = `<small>${machineKey.includes('masina') ? '🧺' : '🌬️'}</small><br>${i18n.t(machineKey === 'masina1' ? 'machine1' : machineKey === 'masina2' ? 'machine2' : machineKey === 'uscator1' ? 'dryer1' : 'dryer2')}`; col.appendChild(header);
 
             slots.forEach(slot => {
                 const slotMins = utils.timeToMins(slot); 
@@ -665,12 +678,12 @@ export const ui = {
                             timeText = `... - ${utils.minsToTime(bEnd)}`;
                         } else {
                             const realEnd = bStart + parseInt(booking.duration);
-                            const endStr = realEnd > 1440 ? utils.minsToTime(realEnd - 1440) + " (mâine)" : utils.minsToTime(realEnd);
+                            const endStr = realEnd > 1440 ? utils.minsToTime(realEnd - 1440) + ` (${i18n.t("tomorrow")})` : utils.minsToTime(realEnd);
                             timeText = `${booking.startTime} - ${endStr}`;
                         }
                         div.innerHTML = `<div class="slot-content"><span class="slot-time">${utils.escapeHtml(timeText)}</span><span class="slot-name">${utils.escapeHtml(booking.userName)}</span></div>`; 
                     }
-                    div.title = `Rezervat: ${booking.userName}`; 
+                    div.title = `${i18n.t("reserved")} ${booking.userName}`; 
                     div.onclick = () => this.showPhoneModal(booking);
                 } else {
                     div.textContent = slot;
@@ -678,6 +691,11 @@ export const ui = {
                         document.getElementById('machineType').value = machineKey; 
                         document.getElementById('duration').value = "60"; 
                         document.getElementById('startTime').value = slot; 
+
+                        // Fix: sincronizează și selector-ul vizual
+                        document.querySelectorAll('.selector-card').forEach(c => c.classList.remove('selected'));
+                        const card = document.querySelector(`.selector-card[data-value="${machineKey}"]`);
+                        if (card) card.classList.add('selected');
                         
                         document.querySelector('.booking-card').scrollIntoView({behavior: 'smooth', block: 'center'}); 
                         document.querySelector('.booking-card').classList.add('highlight-pulse'); 
@@ -703,7 +721,7 @@ export const ui = {
         
         // Telefon vizibil pentru toată lumea
         if (booking.phoneNumber === '-' || booking.phoneNumber === 'Nu este necesar') {
-            phoneEl.textContent = "Numărul de telefon se află pe foaia oficială din spălătorie.";
+            phoneEl.textContent = i18n.t("phone_on_paper");
             phoneEl.style.fontStyle = 'italic';
             phoneEl.style.fontSize = '0.9rem';
             phoneEl.style.color = 'var(--text-muted)';
@@ -720,7 +738,7 @@ export const ui = {
             copyBtn.style.display = 'inline-block';
             callBtn.href = `tel:${booking.phoneNumber}`; 
             copyBtn.onclick = () => { 
-                navigator.clipboard.writeText(booking.phoneNumber).then(() => { utils.showToast('Număr copiat!'); }); 
+                navigator.clipboard.writeText(booking.phoneNumber).then(() => { utils.showToast(i18n.t("phone_copied")); }); 
             };
         }
 
@@ -745,13 +763,13 @@ export const ui = {
         const enteredPin = input.value.trim();
         
         if (!enteredPin || enteredPin.length !== 4) {
-            utils.showToast("Introdu PIN-ul de 4 cifre.", "error");
+            utils.showToast(i18n.t("enter_4_pin_err"), "error");
             return;
         }
 
         const booking = [...localBookings, ...historyBookings].find(b => b.id === deleteId);
         if (!booking) {
-            utils.showToast("Rezervarea nu a fost găsită.", "error");
+            utils.showToast(i18n.t("booking_not_found_err"), "error");
             document.getElementById('modalOverlay').style.display = 'none';
             return;
         }
@@ -769,7 +787,7 @@ export const ui = {
 
         const hasPin = booking.pinHash || booking.code;
         if (!hasPin) {
-             utils.showToast("Rezervare veche fără PIN. Doar admin o poate șterge.", "error");
+             utils.showToast(i18n.t("old_booking_no_pin_err"), "error");
              return;
         }
 
@@ -784,7 +802,7 @@ export const ui = {
             await this.performDelete(deleteId);
             document.getElementById('deletePinModal').style.display = 'none';
         } else {
-            utils.showToast("PIN Incorect!", "error");
+            utils.showToast(i18n.t("wrong_pin_err"), "error");
             input.value = '';
             input.style.borderColor = "var(--danger)";
         }
@@ -819,7 +837,7 @@ export const ui = {
             localBookings = localBookings.filter(b => b.id !== id);
             historyBookings = historyBookings.filter(b => b.id !== id);
             
-            utils.showToast('Rezervare ștearsă cu succes!');
+            utils.showToast(i18n.t("delete_success"));
             this.renderAll(); 
             document.getElementById('modalOverlay').style.display = 'none';
             document.getElementById('confirmModal').style.display = 'none';
@@ -827,7 +845,7 @@ export const ui = {
         } catch (e) {
             console.error("Eroare la ștergere:", e);
             if (e.code === 'permission-denied') {
-                utils.showToast('Eroare: Nu ai permisiunea de a șterge. Contactează un admin.', 'error');
+                utils.showToast(i18n.t("permission_denied_err"), 'error');
             } else {
                 utils.showToast('Eroare server: ' + e.message, 'error');
             }
@@ -849,40 +867,40 @@ export const ui = {
     renderMyBookings() { 
         const container = document.getElementById('myBookings'); 
         const currentUser = document.getElementById('userName').value.trim().toLowerCase(); 
-        if (!currentUser) { container.innerHTML = '<div class="empty-state">Introdu numele pentru a vedea rezervările.</div>'; return; } 
-        const bookings = localBookings.filter(b => b.userName.toLowerCase().includes(currentUser)).sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime)); 
+        if (!currentUser) { container.innerHTML = `<div class="empty-state">${i18n.t("enter_name_to_see_bookings")}</div>`; return; } 
+        const bookings = localBookings.filter(b => b.userName.toLowerCase().startsWith(currentUser)).sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime)); 
         container.innerHTML = bookings.length ? bookings.map(b => {
              const endMins = utils.timeToMins(b.startTime) + parseInt(b.duration);
              const endTime = utils.minsToTime(endMins);
-             return `<div class="booking-item"><div class="booking-info"><strong>${utils.escapeHtml(logic.machines[b.machineType])}</strong><span>${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(b.startTime)} - ${utils.escapeHtml(endTime)}</span></div><button class="btn-delete" data-delete-id="${utils.escapeHtml(b.id)}">Anulează</button></div>`;
-        }).join('') : '<div class="empty-state">Nu am găsit rezervări.</div>'; 
+             return `<div class="booking-item"><div class="booking-info"><strong>${utils.escapeHtml(i18n.t(b.machineType === 'masina1' ? 'machine1' : b.machineType === 'masina2' ? 'machine2' : b.machineType === 'uscator1' ? 'dryer1' : 'dryer2'))}</strong><span>${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(b.startTime)} - ${utils.escapeHtml(endTime)}</span></div><button class="btn-delete" data-delete-id="${utils.escapeHtml(b.id)}">Anulează</button></div>`;
+        }).join('') : `<div class="empty-state">${i18n.t("no_bookings_found")}</div>`; 
     },
 
     renderUpcoming() { 
         const container = document.getElementById('upcomingBookings'); 
         const today = new Date().toISOString().split('T')[0]; 
         const bookings = localBookings.filter(b => b.date > today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5); 
-        container.innerHTML = bookings.length ? bookings.map(b => `<div class="booking-item"><div class="booking-info"><strong>${utils.escapeHtml(b.userName)}</strong><span>${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(logic.machines[b.machineType])}</span></div></div>`).join('') : '<div class="empty-state">Nimic planificat.</div>'; 
+        container.innerHTML = bookings.length ? bookings.map(b => `<div class="booking-item"><div class="booking-info"><strong>${utils.escapeHtml(b.userName)}</strong><span>${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(i18n.t(b.machineType === 'masina1' ? 'machine1' : b.machineType === 'masina2' ? 'machine2' : b.machineType === 'uscator1' ? 'dryer1' : 'dryer2'))}</span></div></div>`).join('') : `<div class="empty-state">${i18n.t("nothing_planned")}</div>`; 
     },
 
     async handleAdminLogin() { 
         if (!firebaseService.auth) {
-            utils.showToast("Autentificarea nu este disponibilă. Verifică consola Firebase (Authentication activat?).", "error");
+            utils.showToast(i18n.t("auth_unavailable_err"), "error");
             return;
         }
         const email = document.getElementById('adminEmail').value.trim();
         const password = document.getElementById('adminPassword').value; 
         
         if (!email || !password) {
-            utils.showToast("Introdu email și parolă", "error");
+            utils.showToast(i18n.t("enter_email_pass_err"), "error");
             return;
         }
 
         const btn = document.getElementById('adminLoginBtn');
-        if (btn) { btn.disabled = true; btn.textContent = 'Se conectează...'; }
+        if (btn) { btn.disabled = true; btn.textContent = i18n.t("logging_in"); }
         try {
             await firebaseService.signInWithEmailAndPassword(firebaseService.auth, email, password);
-            utils.showToast('Autentificare reușită!'); 
+            utils.showToast(i18n.t("login_success")); 
         } catch (error) {
             console.error("Admin login error:", error);
             const code = error.code || '';
@@ -947,7 +965,7 @@ export const ui = {
         const statusLabel = document.getElementById('maintenanceStatusLabel');
         if(toggle && statusLabel) {
              const isChecked = toggle.checked;
-             statusLabel.textContent = isChecked ? "Sistem Offline (Mentenanță)" : "Sistem Online";
+             statusLabel.textContent = isChecked ? i18n.t("system_offline") : i18n.t("system_online");
              if(isChecked) statusLabel.classList.add('offline'); else statusLabel.classList.remove('offline');
         }
 
@@ -969,13 +987,13 @@ export const ui = {
                     <strong>${utils.escapeHtml(b.userName)}</strong>
                     <span><i class="fa-solid fa-phone"></i> ${utils.escapeHtml(b.phoneNumber)}</span>
                     <span><i class="fa-regular fa-calendar"></i> ${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(b.startTime)}-${utils.escapeHtml(endTime)}</span>
-                    <span><i class="fa-solid fa-soap"></i> ${utils.escapeHtml(logic.machines[b.machineType])}</span>
+                    <span><i class="fa-solid fa-soap"></i> ${utils.escapeHtml(i18n.t(b.machineType === 'masina1' ? 'machine1' : b.machineType === 'masina2' ? 'machine2' : b.machineType === 'uscator1' ? 'dryer1' : 'dryer2'))}</span>
                 </div>
                 <button class="btn-delete-vip" data-delete-id="${utils.escapeHtml(b.id)}" title="Șterge">
                     <i class="fa-solid fa-trash"></i>
                 </button>
              </div>`;
-        }).join('') : '<div class="empty-state">Nu am găsit rezervări conform căutării.</div>'; 
+        }).join('') : `<div class="empty-state">${i18n.t("no_bookings_search")}</div>`; 
     }
 };
 
