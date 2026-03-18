@@ -1,8 +1,10 @@
+
+// Configuration Constants
 export const MACHINES = { 
     'masina1': 'Mașină Spălat 1', 
     'masina2': 'Mașină Spălat 2', 
-    'uscator1': 'Uscător Jos', 
-    'uscator2': 'Uscător Sus' 
+    'uscator1': 'Uscător 1', 
+    'uscator2': 'Uscător 2' 
 };
 
 export const FIREBASE_CONFIG = {
@@ -15,5 +17,4 @@ export const FIREBASE_CONFIG = {
 };
 
 export const BOOKING_LIMIT = 4;
-export const LOCK_EXPIRATION_MS = 300000; // 5 minute
-
+export const LOCK_EXPIRATION_MS = 300000; // 5 minutes
