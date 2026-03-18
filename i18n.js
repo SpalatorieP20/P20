@@ -132,7 +132,11 @@ export const i18n = {
       "repeat_success": "✅ Rezervare repetată adăugată pentru săptămâna viitoare!",
       "booking_confirmed": "Rezervare Confirmată! 🎉",
       "ok_close": "OK, Închide",
-      "download_pdf": "Descarcă Raport PDF"
+      "download_pdf": "Descarcă Raport PDF",
+      "label_lang": "Limbă",
+      "label_notif": "Notificări",
+      "label_theme": "Temă",
+      "label_admin": "Admin"
     },
     en: {
       "app_title": "Dormitory Laundry",
@@ -263,7 +267,11 @@ export const i18n = {
       "repeat_success": "✅ Repeat booking added for next week!",
       "booking_confirmed": "Booking Confirmed! 🎉",
       "ok_close": "OK, Close",
-      "download_pdf": "Download PDF Report"
+      "download_pdf": "Download PDF Report",
+      "label_lang": "Language",
+      "label_notif": "Alerts",
+      "label_theme": "Theme",
+      "label_admin": "Admin"
     }
   },
 
