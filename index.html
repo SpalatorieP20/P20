@@ -10,7 +10,7 @@
 
     <title data-i18n="app_title">Spălătorie Cămin</title>
 
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
@@ -122,7 +122,7 @@
                                 <input type="text" id="userPin" required placeholder="Ex: 1234" data-i18n-placeholder="pin_placeholder" maxlength="4" pattern="\d{4}" title="Introdu exact 4 cifre" data-i18n-title="pin_4_digits_err" autocomplete="off">
 
                             </div>
-                            <small style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 4px;" data-i18n="pin_helper">Vei folosi acest cod pentru a șterge rezervarea.</small>
+                            <small style="font-size: 0.75rem; color: var(--text-2); display: block; margin-top: 4px;" data-i18n="pin_helper">Vei folosi acest cod pentru a șterge rezervarea.</small>
 
                         </div>
 
@@ -141,13 +141,13 @@
                             </div>
 
                             <div class="gdpr-consent-wrapper" style="margin-top: 8px; display: flex; align-items: start; gap: 8px;">
-                                <input type="checkbox" id="skipPhone" style="width: 16px; height: 16px; margin-top: 3px;">
-                                <label for="skipPhone" style="font-size: 0.9rem; line-height: 1.4; color: var(--text-muted); cursor: pointer;">
+                                <input type="checkbox" id="skipPhone">
+                                <label for="skipPhone" style="font-size: 0.9rem; line-height: 1.4; color: var(--text-2); cursor: pointer;">
                                     <span data-i18n="skip_phone">Nu doresc să introduc numărul de telefon.</span>
                                 </label>
                             </div>
 
-                            <div class="privacy-note" style="background: rgba(var(--primary-rgb), 0.1); border-left: 3px solid var(--primary); padding: 10px; margin-top: 10px; border-radius: 4px; font-size: 0.85rem; color: var(--text-color);">
+                            <div class="privacy-note" style="background: var(--accent-light); border-left: 3px solid var(--accent); padding: 10px; margin-top: 10px; border-radius: 4px; font-size: 0.85rem; color: var(--text);">
                                 <p style="margin-bottom: 5px;"><strong data-i18n="privacy_note">Notă Confidențialitate:</strong> <span data-i18n="privacy_desc1">Datele sunt folosite doar pentru organizarea programului și pentru contact în caz de probleme.</span></p>
                                 <p><span data-i18n="privacy_desc2">Dacă nu dorești să introduci date personale, completează cel puțin un nume pentru rezervare și folosește varianta oficială pentru restul (foaia de jos).</span></p>
                             </div>
@@ -436,8 +436,8 @@
                     <i class="fa-solid fa-file-pdf"></i> <span data-i18n="download_pdf">Descarcă Raport PDF</span>
                 </button>
 
-                <div id="brokenMachinesSection" style="margin-bottom:16px;padding:14px;background:var(--bg-secondary);border-radius:10px;border:1px solid var(--border);"></div>
-                <div id="histogramSection" style="margin-bottom:16px;padding:14px;background:var(--bg-secondary);border-radius:10px;border:1px solid var(--border);"></div>
+                <div id="brokenMachinesSection" style="margin-bottom:16px;padding:14px;background:var(--bg2);border-radius:10px;border:1px solid var(--border);"></div>
+                <div id="histogramSection" style="margin-bottom:16px;padding:14px;background:var(--bg2);border-radius:10px;border:1px solid var(--border);"></div>
 
                 <div class="list-header">
                     <h3 id="listTitle" data-i18n="active_bookings">Rezervări Active</h3>
