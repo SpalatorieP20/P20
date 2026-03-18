@@ -9,7 +9,6 @@ let deleteId = null;
 let isAdmin = false;
 let adminViewMode = 'active';
 let brokenMachines = {};
-let notifiedBookings = new Set();
 
 export const ui = {
     currentDate: new Date().toISOString().split('T')[0],
@@ -95,55 +94,8 @@ export const ui = {
                 this.updateBrokenMachineVisuals();
             }
         });
-
-        this.setupNotifications();
-        setInterval(() => this.checkAndNotify(), 60000);
     },
 
-    // ─── NOTIFICATIONS ────────────────────────────────────────────────────────
-    setupNotifications() {
-        const notifBtn = document.getElementById('notifToggleBtn');
-        if (!notifBtn || !('Notification' in window)) return;
-        const updateBtn = () => {
-            const perm = Notification.permission;
-            const icon = notifBtn.querySelector('i');
-            if (perm === 'granted') { if (icon) icon.className = 'fa-solid fa-bell'; notifBtn.style.color = 'var(--success)'; notifBtn.title = i18n.t('notif_enabled'); }
-            else if (perm === 'denied') { if (icon) icon.className = 'fa-solid fa-bell-slash'; notifBtn.style.color = 'var(--danger)'; notifBtn.title = i18n.t('notif_denied'); }
-            else { if (icon) icon.className = 'fa-regular fa-bell'; notifBtn.style.color = ''; notifBtn.title = i18n.t('enable_notifs'); }
-        };
-        updateBtn();
-        notifBtn.onclick = async () => {
-            if (Notification.permission === 'default') {
-                const result = await Notification.requestPermission();
-                updateBtn();
-                utils.showToast(result === 'granted' ? i18n.t('notif_enabled') : i18n.t('notif_denied'), result === 'granted' ? 'success' : 'error');
-            } else {
-                utils.showToast(Notification.permission === 'granted' ? i18n.t('notif_enabled') : i18n.t('notif_denied'));
-            }
-        };
-    },
-
-    checkAndNotify() {
-        if (!('Notification' in window) || Notification.permission !== 'granted') return;
-        const savedName = localStorage.getItem('studentName');
-        if (!savedName) return;
-        const now = new Date();
-        const today = now.toISOString().split('T')[0];
-        const currentMins = now.getHours() * 60 + now.getMinutes();
-        localBookings.filter(b => b.userName.toLowerCase() === savedName.toLowerCase() && b.date === today).forEach(b => {
-            const endMins = utils.timeToMins(b.startTime) + parseInt(b.duration);
-            const remaining = endMins - currentMins;
-            if (remaining >= 12 && remaining <= 17 && !notifiedBookings.has(b.id)) {
-                notifiedBookings.add(b.id);
-                const name = i18n.t(b.machineType === 'masina1' ? 'machine1' : b.machineType === 'masina2' ? 'machine2' : b.machineType === 'uscator1' ? 'dryer1' : 'dryer2');
-                new Notification(i18n.t('notif_title'), {
-                    body: `${name}: ${i18n.t('notif_body')}`,
-                    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🧺</text></svg>',
-                    tag: b.id
-                });
-            }
-        });
-    },
 
     // ─── BROKEN MACHINES ──────────────────────────────────────────────────────
     updateBrokenMachineVisuals() {
@@ -501,7 +453,6 @@ export const ui = {
             const start = document.getElementById('startTime').value;
             const duration = parseInt(document.getElementById('duration').value);
             const bookingDate = document.getElementById('bookingDate').value;
-            const repeatNext = document.getElementById('repeatBooking')?.checked || false;
 
             if (!start) throw new Error(i18n.t("select_time_err"));
             if (!machine) throw new Error(i18n.t("choose_machine_err"));
@@ -527,25 +478,6 @@ export const ui = {
                 transaction.set(ref, { userName, phoneNumber: cleanPhone, pinHash, machineType: machine, date: bookingDate, startTime: start, duration, createdAt: new Date().toISOString() });
             });
 
-            // Repeat booking next week
-            let repeatSuccess = false;
-            if (repeatNext) {
-                const nextWeek = utils.addDays(bookingDate, 7);
-                if (logic.isSlotFree(machine, nextWeek, start, duration, localBookings)) {
-                    try {
-                        await firebaseService.runTransaction(firebaseService.db, async (transaction) => {
-                            const slotID = `${nextWeek}_${machine}_${start}`;
-                            const ref = firebaseService.doc(firebaseService.bookingsCollection, slotID);
-                            const existing = await transaction.get(ref);
-                            if (existing.exists()) throw new Error('slot_taken');
-                            const pinHash = await utils.hashPin(pin);
-                            transaction.set(ref, { userName, phoneNumber: cleanPhone, pinHash, machineType: machine, date: nextWeek, startTime: start, duration, createdAt: new Date().toISOString() });
-                        });
-                        repeatSuccess = true;
-                    } catch (re) { console.warn("Repeat booking failed:", re); }
-                }
-            }
-
             localStorage.setItem('studentName', userName);
             localStorage.setItem('studentPhone', cleanPhone);
             firebaseService.logEvent(firebaseService.analytics, 'rezervare_noua', { masina: machine, durata: duration });
@@ -558,7 +490,6 @@ export const ui = {
             document.querySelectorAll('.selector-card').forEach(c => c.classList.remove('selected'));
 
             this.showSuccessModal({ userName, machineType: machine, date: bookingDate, startTime: start, duration });
-            if (repeatSuccess) utils.showToast(i18n.t("repeat_success"), 'success');
 
         } catch (error) {
             console.error(error);
@@ -690,6 +621,7 @@ export const ui = {
     requestDelete(id) {
         if (id) deleteId = id;
         document.getElementById('phoneModal').style.display = 'none';
+        document.getElementById('modalOverlay').style.display = 'flex';
         document.getElementById('deletePinModal').style.display = 'block';
         const input = document.getElementById('deletePinInput');
         input.value = ''; input.focus();
@@ -836,11 +768,11 @@ export const ui = {
         if (!container) return;
         const labels = { masina1: i18n.t('machine1'), masina2: i18n.t('machine2'), uscator1: i18n.t('dryer1'), uscator2: i18n.t('dryer2') };
         const icons = { masina1: '🧺', masina2: '🧺', uscator1: '🌬️', uscator2: '🌬️' };
-                container.innerHTML = `<h4 style="margin:0 0 10px;font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;"><i class="fa-solid fa-screwdriver-wrench"></i> ${i18n.t('machine_status_title')}</h4><div style="display:flex;flex-direction:column;gap:8px;">${Object.keys(logic.machines).map(key => {
+        container.innerHTML = `<h4 style="margin:0 0 10px;font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;"><i class="fa-solid fa-screwdriver-wrench"></i> ${i18n.t('machine_status_title')}</h4><div style="display:flex;flex-direction:column;gap:8px;">${Object.keys(logic.machines).map(key => {
             const isBroken = !!brokenMachines[key];
             return `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-secondary);padding:10px 12px;border-radius:8px;border:1px solid ${isBroken ? 'var(--danger)' : 'var(--border)'};">
-                <span style="font-size:0.9rem;font-weight:500;">${icons[key]} ${labels[key]}</span>
-                <button class="broken-toggle" data-machine="${key}" style="flex-shrink:0;font-size:0.8rem;padding:5px 12px;border-radius:6px;cursor:pointer;border:1px solid ${isBroken ? 'var(--danger)' : 'var(--success)'};background:${isBroken ? 'rgba(220,38,38,0.1)' : 'rgba(34,197,94,0.1)'};color:${isBroken ? 'var(--danger)' : 'var(--success)'};">${isBroken ? i18n.t('broken_toggle_off') : i18n.t('broken_toggle_on')}</button>
+                <span style="font-size:0.85rem;">${icons[key]} ${labels[key]}</span>
+                <button class="broken-toggle" data-machine="${key}" style="font-size:0.75rem;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid ${isBroken ? 'var(--danger)' : 'var(--success)'};background:${isBroken ? 'rgba(220,38,38,0.1)' : 'rgba(34,197,94,0.1)'};color:${isBroken ? 'var(--danger)' : 'var(--success)'};">${isBroken ? i18n.t('broken_toggle_off') : i18n.t('broken_toggle_on')}</button>
             </div>`;
         }).join('')}</div>`;
     },
