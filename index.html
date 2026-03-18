@@ -69,9 +69,6 @@
                 <div class="header-actions">
                     <span class="version-tag">Beta 6.0</span>
                     <button type="button" id="langToggleBtn" class="btn-icon-only" title="Schimbă limba / Change language" aria-label="Schimbă limba (RO / EN)" style="font-weight: bold;">EN</button>
-                    <button id="notifToggleBtn" class="btn-icon-only" title="Activează notificările" aria-label="Notificări browser">
-                        <i class="fa-regular fa-bell" aria-hidden="true"></i>
-                    </button>
                     <button id="themeToggleBtn" class="btn-icon-only" title="Schimbă Tema" aria-label="Schimbă tema (întunecat / deschis)">
                         <i class="fa-solid fa-moon" aria-hidden="true"></i>
                     </button>
@@ -232,9 +229,6 @@
                             <input type="time" id="startTime" required class="time-input">
 
                         </div>
-
-
-
                         <button type="submit" class="btn-primary">
 
                             <i class="fa-solid fa-check"></i> <span data-i18n="book_now">Rezervă Acum</span>
@@ -315,7 +309,7 @@
 
     <div id="modalOverlay" class="modal-overlay">
 
-        <div id="phoneModal" class="modal-box">
+        <div id="phoneModal" class="modal-box" style="display:none;">
 
             <button type="button" class="modal-close" aria-label="Închide">&times;</button>
 
