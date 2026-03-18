@@ -501,7 +501,6 @@ export const ui = {
             const start = document.getElementById('startTime').value;
             const duration = parseInt(document.getElementById('duration').value);
             const bookingDate = document.getElementById('bookingDate').value;
-            const repeatNext = document.getElementById('repeatBooking')?.checked || false;
 
             if (!start) throw new Error(i18n.t("select_time_err"));
             if (!machine) throw new Error(i18n.t("choose_machine_err"));
@@ -527,25 +526,6 @@ export const ui = {
                 transaction.set(ref, { userName, phoneNumber: cleanPhone, pinHash, machineType: machine, date: bookingDate, startTime: start, duration, createdAt: new Date().toISOString() });
             });
 
-            // Repeat booking next week
-            let repeatSuccess = false;
-            if (repeatNext) {
-                const nextWeek = utils.addDays(bookingDate, 7);
-                if (logic.isSlotFree(machine, nextWeek, start, duration, localBookings)) {
-                    try {
-                        await firebaseService.runTransaction(firebaseService.db, async (transaction) => {
-                            const slotID = `${nextWeek}_${machine}_${start}`;
-                            const ref = firebaseService.doc(firebaseService.bookingsCollection, slotID);
-                            const existing = await transaction.get(ref);
-                            if (existing.exists()) throw new Error('slot_taken');
-                            const pinHash = await utils.hashPin(pin);
-                            transaction.set(ref, { userName, phoneNumber: cleanPhone, pinHash, machineType: machine, date: nextWeek, startTime: start, duration, createdAt: new Date().toISOString() });
-                        });
-                        repeatSuccess = true;
-                    } catch (re) { console.warn("Repeat booking failed:", re); }
-                }
-            }
-
             localStorage.setItem('studentName', userName);
             localStorage.setItem('studentPhone', cleanPhone);
             firebaseService.logEvent(firebaseService.analytics, 'rezervare_noua', { masina: machine, durata: duration });
@@ -558,7 +538,6 @@ export const ui = {
             document.querySelectorAll('.selector-card').forEach(c => c.classList.remove('selected'));
 
             this.showSuccessModal({ userName, machineType: machine, date: bookingDate, startTime: start, duration });
-            if (repeatSuccess) utils.showToast(i18n.t("repeat_success"), 'success');
 
         } catch (error) {
             console.error(error);
@@ -690,6 +669,7 @@ export const ui = {
     requestDelete(id) {
         if (id) deleteId = id;
         document.getElementById('phoneModal').style.display = 'none';
+        document.getElementById('modalOverlay').style.display = 'flex';
         document.getElementById('deletePinModal').style.display = 'block';
         const input = document.getElementById('deletePinInput');
         input.value = ''; input.focus();
