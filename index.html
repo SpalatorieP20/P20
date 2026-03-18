@@ -67,8 +67,11 @@
                 </div>
 
                 <div class="header-actions">
-                    <span class="version-tag">Beta 5.0</span>
+                    <span class="version-tag">Beta 6.0</span>
                     <button type="button" id="langToggleBtn" class="btn-icon-only" title="Schimbă limba / Change language" aria-label="Schimbă limba (RO / EN)" style="font-weight: bold;">EN</button>
+                    <button id="notifToggleBtn" class="btn-icon-only" title="Activează notificările" aria-label="Notificări browser">
+                        <i class="fa-regular fa-bell" aria-hidden="true"></i>
+                    </button>
                     <button id="themeToggleBtn" class="btn-icon-only" title="Schimbă Tema" aria-label="Schimbă tema (întunecat / deschis)">
                         <i class="fa-solid fa-moon" aria-hidden="true"></i>
                     </button>
@@ -232,6 +235,8 @@
 
 
 
+
+
                         <button type="submit" class="btn-primary">
 
                             <i class="fa-solid fa-check"></i> <span data-i18n="book_now">Rezervă Acum</span>
@@ -312,7 +317,7 @@
 
     <div id="modalOverlay" class="modal-overlay">
 
-        <div id="phoneModal" class="modal-box">
+        <div id="phoneModal" class="modal-box" style="display:none;">
 
             <button type="button" class="modal-close" aria-label="Închide">&times;</button>
 
@@ -432,9 +437,15 @@
                     </div>
                 </div>
 
-                <button id="exportCsvBtn" class="btn-ghost" style="width:100%; margin-bottom:15px; border-color:var(--success); color:var(--success);">
+                <button id="exportCsvBtn" class="btn-ghost" style="width:100%; margin-bottom:8px; border-color:var(--success); color:var(--success);">
                     <i class="fa-solid fa-file-csv"></i> <span data-i18n="download_csv">Descarcă Raport Excel (CSV)</span>
                 </button>
+                <button id="exportPdfBtn" class="btn-ghost" style="width:100%; margin-bottom:15px; border-color:#e11d48; color:#e11d48;">
+                    <i class="fa-solid fa-file-pdf"></i> <span data-i18n="download_pdf">Descarcă Raport PDF</span>
+                </button>
+
+                <div id="brokenMachinesSection" style="margin-bottom:16px;padding:14px;background:var(--bg-secondary);border-radius:10px;border:1px solid var(--border);"></div>
+                <div id="histogramSection" style="margin-bottom:16px;padding:14px;background:var(--bg-secondary);border-radius:10px;border:1px solid var(--border);"></div>
 
                 <div class="list-header">
                     <h3 id="listTitle" data-i18n="active_bookings">Rezervări Active</h3>
@@ -452,9 +463,41 @@
 
         </div>
 
+        <!-- Success Modal -->
+        <div id="successModal" class="modal-box success-modal" style="display:none;">
+            <button type="button" class="modal-close" aria-label="Închide">&times;</button>
+            <div class="success-modal-icon">
+                <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <h3 data-i18n="booking_confirmed">Rezervare Confirmată!</h3>
+            <div class="success-details">
+                <div class="success-row">
+                    <span class="success-label"><i class="fa-solid fa-soap"></i></span>
+                    <span id="successMachine" class="success-value">—</span>
+                </div>
+                <div class="success-row">
+                    <span class="success-label"><i class="fa-regular fa-calendar"></i></span>
+                    <span id="successDate" class="success-value">—</span>
+                </div>
+                <div class="success-row">
+                    <span class="success-label"><i class="fa-regular fa-clock"></i></span>
+                    <span id="successTime" class="success-value">—</span>
+                </div>
+                <div class="success-row">
+                    <span class="success-label"><i class="fa-solid fa-hourglass-half"></i></span>
+                    <span id="successDuration" class="success-value">—</span>
+                </div>
+                <div class="success-row">
+                    <span class="success-label"><i class="fa-solid fa-user"></i></span>
+                    <span id="successName" class="success-value">—</span>
+                </div>
+            </div>
+            <button id="successModalCloseBtn" class="btn-primary" style="width:100%;margin-top:16px;">
+                <i class="fa-solid fa-check"></i> <span data-i18n="ok_close">OK, Închide</span>
+            </button>
+        </div>
+
     </div>
-
-
 
     <div id="toast" class="toast"></div>
 
