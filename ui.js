@@ -9,7 +9,6 @@ let deleteId = null;
 let isAdmin = false;
 let adminViewMode = 'active';
 let brokenMachines = {};
-let notifiedBookings = new Set();
 
 export const ui = {
     currentDate: new Date().toISOString().split('T')[0],
@@ -21,7 +20,7 @@ export const ui = {
         const savedName = localStorage.getItem('studentName');
         const savedPhone = localStorage.getItem('studentPhone');
         if (savedName) { const n = document.getElementById('userName'); if (n) n.value = savedName; }
-        if (savedPhone) { const p = document.getElementById('phoneNumber'); if (p) p.value = savedPhone; }
+        if (savedPhone && savedPhone !== '-') { const p = document.getElementById('phoneNumber'); if (p) p.value = savedPhone; }
 
         if (firebaseService.auth) this.setupAuthListener();
 
@@ -98,53 +97,6 @@ export const ui = {
             }
         });
 
-        this.setupNotifications();
-        setInterval(() => this.checkAndNotify(), 60000);
-    },
-
-    // ─── NOTIFICATIONS ────────────────────────────────────────────────────────
-    setupNotifications() {
-        const notifBtn = document.getElementById('notifToggleBtn');
-        if (!notifBtn || !('Notification' in window)) return;
-        const updateBtn = () => {
-            const perm = Notification.permission;
-            const icon = notifBtn.querySelector('i');
-            if (perm === 'granted') { if (icon) icon.className = 'fa-solid fa-bell'; notifBtn.style.color = 'var(--success)'; notifBtn.title = i18n.t('notif_enabled'); }
-            else if (perm === 'denied') { if (icon) icon.className = 'fa-solid fa-bell-slash'; notifBtn.style.color = 'var(--danger)'; notifBtn.title = i18n.t('notif_denied'); }
-            else { if (icon) icon.className = 'fa-regular fa-bell'; notifBtn.style.color = ''; notifBtn.title = i18n.t('enable_notifs'); }
-        };
-        updateBtn();
-        notifBtn.onclick = async () => {
-            if (Notification.permission === 'default') {
-                const result = await Notification.requestPermission();
-                updateBtn();
-                utils.showToast(result === 'granted' ? i18n.t('notif_enabled') : i18n.t('notif_denied'), result === 'granted' ? 'success' : 'error');
-            } else {
-                utils.showToast(Notification.permission === 'granted' ? i18n.t('notif_enabled') : i18n.t('notif_denied'));
-            }
-        };
-    },
-
-    checkAndNotify() {
-        if (!('Notification' in window) || Notification.permission !== 'granted') return;
-        const savedName = localStorage.getItem('studentName');
-        if (!savedName) return;
-        const now = new Date();
-        const today = now.toISOString().split('T')[0];
-        const currentMins = now.getHours() * 60 + now.getMinutes();
-        localBookings.filter(b => b.userName.toLowerCase() === savedName.toLowerCase() && b.date === today).forEach(b => {
-            const endMins = utils.timeToMins(b.startTime) + parseInt(b.duration);
-            const remaining = endMins - currentMins;
-            if (remaining >= 12 && remaining <= 17 && !notifiedBookings.has(b.id)) {
-                notifiedBookings.add(b.id);
-                const name = i18n.t(b.machineType === 'masina1' ? 'machine1' : b.machineType === 'masina2' ? 'machine2' : b.machineType === 'uscator1' ? 'dryer1' : 'dryer2');
-                new Notification(i18n.t('notif_title'), {
-                    body: `${name}: ${i18n.t('notif_body')}`,
-                    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🧺</text></svg>',
-                    tag: b.id
-                });
-            }
-        });
     },
 
     // ─── BROKEN MACHINES ──────────────────────────────────────────────────────
@@ -161,7 +113,7 @@ export const ui = {
         try {
             await firebaseService.setDoc(firebaseService.doc(firebaseService.db, "settings", "appState"), { brokenMachines: newBroken }, { merge: true });
             utils.showToast(newBroken[machineKey] ? i18n.t('broken_on_toast') : i18n.t('broken_off_toast'));
-        } catch (e) { console.error(e); utils.showToast("Eroare.", "error"); }
+        } catch (e) { console.error(e); utils.showToast(i18n.t("error_generic"), "error"); }
     },
 
     startMidnightWatcher() {
@@ -251,7 +203,7 @@ export const ui = {
         if (skipCheck && phoneInput) {
             skipCheck.addEventListener('change', () => {
                 if (skipCheck.checked) { phoneInput.value = ''; phoneInput.disabled = true; phoneInput.style.borderColor = ''; phoneInput.placeholder = i18n.t("not_required"); }
-                else { phoneInput.disabled = false; phoneInput.placeholder = "07xx xxx xxx"; }
+                else { phoneInput.disabled = false; phoneInput.placeholder = i18n.t("phone_placeholder"); }
             });
         }
 
@@ -303,7 +255,7 @@ export const ui = {
             try {
                 await firebaseService.setDoc(firebaseService.doc(firebaseService.db, "settings", "appState"), { maintenance: isChecked, brokenMachines }, { merge: true });
                 utils.showToast(isChecked ? i18n.t("maintenance_on") : i18n.t("maintenance_off"));
-            } catch (err) { console.error(err); utils.showToast("Eroare.", "error"); e.target.checked = !isChecked; }
+            } catch (err) { console.error(err); utils.showToast(i18n.t("error_generic"), "error"); e.target.checked = !isChecked; }
         };
 
         document.getElementById('maintenanceAdminBtn').onclick = () => {
@@ -339,13 +291,13 @@ export const ui = {
             document.getElementById('tabActive').classList.remove('active');
             document.getElementById('listTitle').textContent = i18n.t("history_loading");
             const listEl = document.getElementById('adminBookingsList');
-            listEl.innerHTML = '<div class="empty-state"><div class="spinner" style="width:32px;height:32px;border-width:3px;margin:0 auto 12px;"></div>Se încarcă...</div>';
+            listEl.innerHTML = `<div class="empty-state"><div class="spinner" style="width:32px;height:32px;border-width:3px;margin:0 auto 12px;"></div>${i18n.t("loading")}</div>`;
             const badgeEl = document.getElementById('listBadgeCount');
             if (badgeEl) badgeEl.textContent = '0';
             try {
                 const d2 = new Date(); d2.setDate(d2.getDate() - 1);
                 const yest = d2.toISOString().split('T')[0];
-                const qH = firebaseService.query(firebaseService.bookingsCollection, firebaseService.where("date", "<", yest), firebaseService.orderBy("date", "desc"), firebaseService.limit(50));
+                const qH = firebaseService.query(firebaseService.bookingsCollection, firebaseService.where("date", "<", yest), firebaseService.orderBy("date", "desc"), firebaseService.limit(200));
                 const snap = await firebaseService.getDocs(qH);
                 historyBookings = [];
                 snap.docs.forEach(doc => historyBookings.push({ ...doc.data(), id: doc.id }));
@@ -355,7 +307,7 @@ export const ui = {
                 console.error(e);
                 utils.showToast(i18n.t("history_error"), "error");
                 document.getElementById('listTitle').textContent = i18n.t("history_bookings");
-                listEl.innerHTML = '<div class="empty-state">Eroare la încărcare.</div>';
+                listEl.innerHTML = `<div class="empty-state">${i18n.t("history_error")}</div>`;
             }
         };
 
@@ -364,17 +316,20 @@ export const ui = {
             if (!firebaseService.auth?.currentUser) return;
             const data = adminViewMode === 'active' ? localBookings : historyBookings;
             if (!data.length) { utils.showToast(i18n.t("no_export_data"), "error"); return; }
-            let csv = "data:text/csv;charset=utf-8,\uFEFF";
+            let csv = "\uFEFF";
             csv += "Data,Ora,Nume,Telefon,Masina,Durata\n";
             data.forEach(r => {
                 csv += [r.date, r.startTime, r.userName, r.phoneNumber,
-                    i18n.t(r.machineType === 'masina1' ? 'machine1' : r.machineType === 'masina2' ? 'machine2' : r.machineType === 'uscator1' ? 'dryer1' : 'dryer2'),
+                    i18n.t(utils.getMachineKey(r.machineType)),
                     r.duration].map(v => utils.escapeCsvCell(v)).join(",") + "\n";
             });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
-            link.setAttribute("href", encodeURI(csv));
+            link.setAttribute("href", url);
             link.setAttribute("download", `raport_${adminViewMode}.csv`);
             document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            URL.revokeObjectURL(url);
         };
 
         const exportPdfBtn = document.getElementById('exportPdfBtn');
@@ -403,7 +358,7 @@ export const ui = {
         if (!firebaseService.auth?.currentUser) return;
         const data = adminViewMode === 'active' ? localBookings : historyBookings;
         if (!data.length) { utils.showToast(i18n.t("no_export_data"), "error"); return; }
-        utils.showToast("Se generează PDF...");
+        utils.showToast(i18n.t("pdf_generating"));
         const loadScript = src => new Promise((res, rej) => {
             if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
             const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s);
@@ -421,7 +376,7 @@ export const ui = {
                 body: data.map(b => {
                     const end = utils.minsToTime(utils.timeToMins(b.startTime) + parseInt(b.duration));
                     return [b.date, `${b.startTime} - ${end}`, b.userName, b.phoneNumber || '-',
-                        i18n.t(b.machineType === 'masina1' ? 'machine1' : b.machineType === 'masina2' ? 'machine2' : b.machineType === 'uscator1' ? 'dryer1' : 'dryer2'),
+                        i18n.t(utils.getMachineKey(b.machineType)),
                         `${b.duration} min`];
                 }),
                 startY: 32,
@@ -431,7 +386,7 @@ export const ui = {
                 columnStyles: { 2: { fontStyle: 'bold' } }
             });
             doc.save(`raport_rezervari_${adminViewMode}.pdf`);
-        } catch (err) { console.error(err); utils.showToast("Eroare la generarea PDF.", "error"); }
+        } catch (err) { console.error(err); utils.showToast(i18n.t("pdf_error"), "error"); }
     },
 
     setupAuthListener() {
@@ -464,6 +419,7 @@ export const ui = {
         if (newDate < today) { utils.showToast(i18n.t("cannot_see_past"), 'error'); return; }
         this.currentDate = newDate;
         document.getElementById('bookingDate').value = newDate;
+        document.querySelectorAll('.selected-slot').forEach(el => el.classList.remove('selected-slot'));
         this.updateDateDisplay(); this.renderAll();
     },
 
@@ -478,7 +434,7 @@ export const ui = {
         const modal = document.getElementById('successModal');
         if (!modal) return;
         const endMins = utils.timeToMins(booking.startTime) + parseInt(booking.duration);
-        const machineName = i18n.t(booking.machineType === 'masina1' ? 'machine1' : booking.machineType === 'masina2' ? 'machine2' : booking.machineType === 'uscator1' ? 'dryer1' : 'dryer2');
+        const machineName = i18n.t(utils.getMachineKey(booking.machineType));
         document.getElementById('successMachine').textContent = machineName;
         document.getElementById('successDate').textContent = utils.formatDateRO(booking.date);
         document.getElementById('successTime').textContent = `${booking.startTime} — ${utils.minsToTime(endMins)}`;
@@ -495,7 +451,7 @@ export const ui = {
         const submitBtn = e.target.querySelector('button[type="submit"]');
         const orig = submitBtn.innerHTML;
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<div class="spinner" style="width:20px;height:20px;border-width:2px;margin:0;display:inline-block;"></div> Verificare...';
+        submitBtn.innerHTML = `<div class="spinner" style="width:20px;height:20px;border-width:2px;margin:0;display:inline-block;"></div> ${i18n.t('verifying')}`;
         try {
             let userName = document.getElementById('userName').value.trim();
             const phone = document.getElementById('phoneNumber').value.trim();
@@ -504,7 +460,6 @@ export const ui = {
             const start = document.getElementById('startTime').value;
             const duration = parseInt(document.getElementById('duration').value);
             const bookingDate = document.getElementById('bookingDate').value;
-            const repeatNext = document.getElementById('repeatBooking')?.checked || false;
 
             if (!start) throw new Error(i18n.t("select_time_err"));
             if (!machine) throw new Error(i18n.t("choose_machine_err"));
@@ -513,11 +468,12 @@ export const ui = {
 
             userName = utils.capitalize(userName);
             let cleanPhone = phone.replace(/\D/g, '');
-            const skipPhone = document.getElementById('skipPhone').checked;
+            const phoneEl2 = document.getElementById('phoneNumber');
+            const skipPhone = document.getElementById('skipPhone').checked || (phoneEl2 && phoneEl2.disabled);
             if (skipPhone) { cleanPhone = "-"; }
             else if (cleanPhone.length !== 10 || !cleanPhone.startsWith('07')) throw new Error(i18n.t("invalid_phone_err"));
 
-            if (!pin || pin.length !== 4 || isNaN(pin)) throw new Error(i18n.t("pin_4_digits_err"));
+            if (!pin || !/^\d{4}$/.test(pin)) throw new Error(i18n.t("pin_4_digits_err"));
             if (!logic.canUserBook(userName, localBookings)) throw new Error(i18n.t("limit_reached_err"));
             if (!logic.isSlotFree(machine, bookingDate, start, duration, localBookings)) throw new Error(i18n.t("slot_taken_err"));
 
@@ -526,42 +482,25 @@ export const ui = {
                 const ref = firebaseService.doc(firebaseService.bookingsCollection, slotID);
                 const existing = await transaction.get(ref);
                 if (existing.exists()) throw i18n.t("slot_taken_transaction_err");
-                const pinHash = await utils.hashPin(pin);
+                const pinHash = await utils.hashPin(pin, slotID);
                 transaction.set(ref, { userName, phoneNumber: cleanPhone, pinHash, machineType: machine, date: bookingDate, startTime: start, duration, createdAt: new Date().toISOString() });
             });
 
-            // Repeat booking next week
-            let repeatSuccess = false;
-            if (repeatNext) {
-                const nextWeek = utils.addDays(bookingDate, 7);
-                if (logic.isSlotFree(machine, nextWeek, start, duration, localBookings)) {
-                    try {
-                        await firebaseService.runTransaction(firebaseService.db, async (transaction) => {
-                            const slotID = `${nextWeek}_${machine}_${start}`;
-                            const ref = firebaseService.doc(firebaseService.bookingsCollection, slotID);
-                            const existing = await transaction.get(ref);
-                            if (existing.exists()) throw new Error('slot_taken');
-                            const pinHash = await utils.hashPin(pin);
-                            transaction.set(ref, { userName, phoneNumber: cleanPhone, pinHash, machineType: machine, date: nextWeek, startTime: start, duration, createdAt: new Date().toISOString() });
-                        });
-                        repeatSuccess = true;
-                    } catch (re) { console.warn("Repeat booking failed:", re); }
-                }
-            }
-
             localStorage.setItem('studentName', userName);
-            localStorage.setItem('studentPhone', cleanPhone);
+            if (cleanPhone !== '-') localStorage.setItem('studentPhone', cleanPhone);
             firebaseService.logEvent(firebaseService.analytics, 'rezervare_noua', { masina: machine, durata: duration });
 
             e.target.reset();
             document.getElementById('userName').value = userName;
             document.getElementById('bookingDate').value = bookingDate;
             document.getElementById('startTime').style.borderColor = 'var(--border)';
+            // Reset phone input state explicitly — form.reset() resets checkbox but NOT disabled state
+            const phoneEl = document.getElementById('phoneNumber');
+            if (phoneEl) { phoneEl.disabled = false; phoneEl.style.borderColor = ''; phoneEl.placeholder = i18n.t("phone_placeholder"); }
             document.querySelectorAll('.selected-slot').forEach(el => el.classList.remove('selected-slot'));
             document.querySelectorAll('.selector-card').forEach(c => c.classList.remove('selected'));
 
             this.showSuccessModal({ userName, machineType: machine, date: bookingDate, startTime: start, duration });
-            if (repeatSuccess) utils.showToast(i18n.t("repeat_success"), 'success');
 
         } catch (error) {
             console.error(error);
@@ -595,7 +534,7 @@ export const ui = {
             const col = document.createElement('div'); col.className = 'machine-column';
             const header = document.createElement('div'); header.className = 'machine-header';
             const isBroken = !!brokenMachines[machineKey];
-            const label = i18n.t(machineKey === 'masina1' ? 'machine1' : machineKey === 'masina2' ? 'machine2' : machineKey === 'uscator1' ? 'dryer1' : 'dryer2');
+            const label = i18n.t(utils.getMachineKey(machineKey));
             header.innerHTML = `<small>${machineKey.includes('masina') ? '🧺' : '🌬️'}</small><br>${label}${isBroken ? ' 🔧' : ''}`;
             if (isBroken) header.style.color = 'var(--danger)';
             col.appendChild(header);
@@ -676,7 +615,7 @@ export const ui = {
         const copyBtn = document.getElementById('copyPhoneBtn');
         if (booking.phoneNumber === '-' || booking.phoneNumber === 'Nu este necesar') {
             phoneEl.textContent = i18n.t("phone_on_paper");
-            phoneEl.style.cssText = 'font-style:italic;font-size:0.9rem;color:var(--text-muted);';
+            phoneEl.style.cssText = 'font-style:italic;font-size:0.9rem;color:var(--text-2);';
             callBtn.style.display = 'none'; copyBtn.style.display = 'none';
         } else {
             phoneEl.textContent = booking.phoneNumber;
@@ -701,13 +640,13 @@ export const ui = {
     async confirmPinDelete() {
         const input = document.getElementById('deletePinInput');
         const enteredPin = input.value.trim();
-        if (!enteredPin || enteredPin.length !== 4) { utils.showToast(i18n.t("enter_4_pin_err"), "error"); return; }
+        if (!enteredPin || !/^\d{4}$/.test(enteredPin)) { utils.showToast(i18n.t("enter_4_pin_err"), "error"); return; }
         const booking = [...localBookings, ...historyBookings].find(b => b.id === deleteId);
         if (!booking) { utils.showToast(i18n.t("booking_not_found_err"), "error"); document.getElementById('modalOverlay').style.display = 'none'; return; }
         if (firebaseService.auth?.currentUser) { await this.performDelete(deleteId); document.getElementById('deletePinModal').style.display = 'none'; return; }
         const hasPin = booking.pinHash || booking.code;
         if (!hasPin) { utils.showToast(i18n.t("old_booking_no_pin_err"), "error"); return; }
-        let pinOk = booking.pinHash ? (await utils.hashPin(enteredPin)) === booking.pinHash : booking.code === enteredPin;
+        let pinOk = booking.pinHash ? (await utils.hashPin(enteredPin, booking.id)) === booking.pinHash : booking.code === enteredPin;
         if (pinOk) { await this.performDelete(deleteId); document.getElementById('deletePinModal').style.display = 'none'; }
         else { utils.showToast(i18n.t("wrong_pin_err"), "error"); input.value = ''; input.style.borderColor = "var(--danger)"; }
     },
@@ -728,7 +667,7 @@ export const ui = {
             historyBookings = historyBookings.filter(b => b.id !== id);
             utils.showToast(i18n.t("delete_success"));
             this.renderAll();
-            ['modalOverlay','confirmModal','deletePinModal'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+            ['modalOverlay','confirmModal','deletePinModal'].forEach(modalId => { const el = document.getElementById(modalId); if (el) el.style.display = 'none'; });
         } catch (e) {
             console.error("Delete error:", e);
             utils.showToast(e.code === 'permission-denied' ? i18n.t("permission_denied_err") : 'Eroare: ' + e.message, 'error');
@@ -748,19 +687,18 @@ export const ui = {
         const container = document.getElementById('myBookings');
         const currentUser = document.getElementById('userName').value.trim().toLowerCase();
         if (!currentUser) { container.innerHTML = `<div class="empty-state">${i18n.t("enter_name_to_see_bookings")}</div>`; return; }
-        // Fix: startsWith to avoid showing other people's bookings
-        const bookings = localBookings.filter(b => b.userName.toLowerCase().startsWith(currentUser)).sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+        const bookings = localBookings.filter(b => b.userName.toLowerCase() === currentUser).sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
         container.innerHTML = bookings.length ? bookings.map(b => {
             const end = utils.minsToTime(utils.timeToMins(b.startTime) + parseInt(b.duration));
-            return `<div class="booking-item"><div class="booking-info"><strong>${utils.escapeHtml(i18n.t(b.machineType === 'masina1' ? 'machine1' : b.machineType === 'masina2' ? 'machine2' : b.machineType === 'uscator1' ? 'dryer1' : 'dryer2'))}</strong><span>${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(b.startTime)} - ${utils.escapeHtml(end)}</span></div><button class="btn-delete" data-delete-id="${utils.escapeHtml(b.id)}">Anulează</button></div>`;
+            return `<div class="booking-item"><div class="booking-info"><strong>${utils.escapeHtml(i18n.t(utils.getMachineKey(b.machineType)))}</strong><span>${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(b.startTime)} - ${utils.escapeHtml(end)}</span></div></div>`;
         }).join('') : `<div class="empty-state">${i18n.t("no_bookings_found")}</div>`;
     },
 
     renderUpcoming() {
         const container = document.getElementById('upcomingBookings');
         const today = new Date().toISOString().split('T')[0];
-        const bookings = localBookings.filter(b => b.date > today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5);
-        container.innerHTML = bookings.length ? bookings.map(b => `<div class="booking-item"><div class="booking-info"><strong>${utils.escapeHtml(b.userName)}</strong><span>${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(i18n.t(b.machineType === 'masina1' ? 'machine1' : b.machineType === 'masina2' ? 'machine2' : b.machineType === 'uscator1' ? 'dryer1' : 'dryer2'))}</span></div></div>`).join('') : `<div class="empty-state">${i18n.t("nothing_planned")}</div>`;
+        const bookings = localBookings.filter(b => b.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5);
+        container.innerHTML = bookings.length ? bookings.map(b => `<div class="booking-item"><div class="booking-info"><strong>${utils.escapeHtml(b.userName)}</strong><span>${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(i18n.t(utils.getMachineKey(b.machineType)))}</span></div></div>`).join('') : `<div class="empty-state">${i18n.t("nothing_planned")}</div>`;
     },
 
     async handleAdminLogin() {
@@ -775,29 +713,29 @@ export const ui = {
             utils.showToast(i18n.t("login_success"));
         } catch (error) {
             const c = error.code || '';
-            let msg = 'Email sau parolă greșită.';
-            if (c === 'auth/user-not-found') msg = 'Nu există cont cu acest email.';
-            else if (c === 'auth/wrong-password') msg = 'Parolă incorectă.';
-            else if (c === 'auth/invalid-credential') msg = 'Email sau parolă greșită.';
-            else if (c === 'auth/invalid-email') msg = 'Email invalid.';
-            else if (c === 'auth/operation-not-allowed') msg = 'Email/Parolă nu e activat în Firebase.';
+            let msg = i18n.t('login_err_default');
+            if (c === 'auth/user-not-found') msg = i18n.t('login_err_not_found');
+            else if (c === 'auth/wrong-password') msg = i18n.t('login_err_wrong_pass');
+            else if (c === 'auth/invalid-credential') msg = i18n.t('login_err_default');
+            else if (c === 'auth/invalid-email') msg = i18n.t('login_err_invalid_email');
+            else if (c === 'auth/operation-not-allowed') msg = i18n.t('login_err_not_allowed');
             else if (error.message) msg = error.message;
             utils.showToast(msg, 'error');
-        } finally { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Conectare'; } }
+        } finally { if (btn) { btn.disabled = false; btn.innerHTML = `<i class="fa-solid fa-right-to-bracket"></i> ${i18n.t('login')}`; } }
     },
 
     async cleanupOldBookings() {
         if (!firebaseService.auth?.currentUser) return;
         try {
-            const d = new Date(); d.setDate(d.getDate() - 5);
+            const d = new Date(); d.setDate(d.getDate() - 30);
             const cutoff = d.toISOString().split('T')[0];
-            const q = firebaseService.query(firebaseService.bookingsCollection, firebaseService.where("date", "<", cutoff), firebaseService.limit(50));
+            const q = firebaseService.query(firebaseService.bookingsCollection, firebaseService.where("date", "<", cutoff), firebaseService.limit(200));
             const snap = await firebaseService.getDocs(q);
             if (!snap.empty) {
                 const batch = firebaseService.writeBatch(firebaseService.db);
                 snap.docs.forEach(doc => batch.delete(doc.ref));
                 await batch.commit();
-                console.log(`[Cleanup] Sterse ${snap.size} rezervari vechi.`);
+                console.log(`[Cleanup] Sterse ${snap.size} rezervari mai vechi de 30 zile.`);
             }
         } catch (e) { console.error("[Cleanup Error]", e); }
     },
@@ -830,19 +768,18 @@ export const ui = {
         const bookings = [...filtered].sort((a, b) => adminViewMode === 'history' ? b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime) : a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime));
         document.getElementById('adminBookingsList').innerHTML = bookings.length ? bookings.map(b => {
             const end = utils.minsToTime(utils.timeToMins(b.startTime) + parseInt(b.duration));
-            return `<div class="admin-list-item"><div class="admin-item-info"><strong>${utils.escapeHtml(b.userName)}</strong><span><i class="fa-solid fa-phone"></i> ${utils.escapeHtml(b.phoneNumber)}</span><span><i class="fa-regular fa-calendar"></i> ${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(b.startTime)}-${utils.escapeHtml(end)}</span><span><i class="fa-solid fa-soap"></i> ${utils.escapeHtml(i18n.t(b.machineType === 'masina1' ? 'machine1' : b.machineType === 'masina2' ? 'machine2' : b.machineType === 'uscator1' ? 'dryer1' : 'dryer2'))}</span></div><button class="btn-delete-vip" data-delete-id="${utils.escapeHtml(b.id)}" title="Șterge"><i class="fa-solid fa-trash"></i></button></div>`;
+            return `<div class="admin-list-item"><div class="admin-item-info"><strong>${utils.escapeHtml(b.userName)}</strong><span><i class="fa-solid fa-phone"></i> ${utils.escapeHtml(b.phoneNumber)}</span><span><i class="fa-regular fa-calendar"></i> ${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(b.startTime)}-${utils.escapeHtml(end)}</span><span><i class="fa-solid fa-soap"></i> ${utils.escapeHtml(i18n.t(utils.getMachineKey(b.machineType)))}</span></div><button class="btn-delete-vip" data-delete-id="${utils.escapeHtml(b.id)}" title="Șterge"><i class="fa-solid fa-trash"></i></button></div>`;
         }).join('') : `<div class="empty-state">${i18n.t("no_bookings_search")}</div>`;
     },
 
     renderBrokenMachineToggles() {
         const container = document.getElementById('brokenMachinesSection');
         if (!container) return;
-        const labels = { masina1: i18n.t('machine1'), masina2: i18n.t('machine2'), uscator1: i18n.t('dryer1'), uscator2: i18n.t('dryer2') };
         const icons = { masina1: '🧺', masina2: '🧺', uscator1: '🌬️', uscator2: '🌬️' };
-        container.innerHTML = `<h4 style="margin:0 0 10px;font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;"><i class="fa-solid fa-screwdriver-wrench"></i> ${i18n.t('machine_status_title')}</h4><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">${Object.keys(logic.machines).map(key => {
+        container.innerHTML = `<h4 style="margin:0 0 10px;font-size:0.82rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.5px;"><i class="fa-solid fa-screwdriver-wrench"></i> ${i18n.t('machine_status_title')}</h4><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">${Object.keys(logic.machines).map(key => {
             const isBroken = !!brokenMachines[key];
-            return `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-secondary);padding:8px 10px;border-radius:8px;border:1px solid ${isBroken ? 'var(--danger)' : 'var(--border)'};">
-                <span style="font-size:0.85rem;">${icons[key]} ${labels[key]}</span>
+            return `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg2);padding:8px 10px;border-radius:8px;border:1px solid ${isBroken ? 'var(--danger)' : 'var(--border)'};">
+                <span style="font-size:0.85rem;">${icons[key]} ${i18n.t(utils.getMachineKey(key))}</span>
                 <button class="broken-toggle" data-machine="${key}" style="font-size:0.75rem;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid ${isBroken ? 'var(--danger)' : 'var(--success)'};background:${isBroken ? 'rgba(220,38,38,0.1)' : 'rgba(34,197,94,0.1)'};color:${isBroken ? 'var(--danger)' : 'var(--success)'};">${isBroken ? i18n.t('broken_toggle_off') : i18n.t('broken_toggle_on')}</button>
             </div>`;
         }).join('')}</div>`;
@@ -862,15 +799,16 @@ export const ui = {
         hourSrc.forEach(b => { const h = parseInt((b.startTime || '0').split(':')[0]); if (h >= 0 && h < 24) byHour[h]++; });
         const maxH = Math.max(...byHour, 1);
         const colors = { masina1: '#4f46e5', masina2: '#7c3aed', uscator1: '#0891b2', uscator2: '#0284c7' };
-        const labels = { masina1: i18n.t('machine1'), masina2: i18n.t('machine2'), uscator1: i18n.t('dryer1'), uscator2: i18n.t('dryer2') };
         container.innerHTML = `
-            <h4 style="margin:0 0 10px;font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;"><i class="fa-solid fa-chart-bar"></i> ${i18n.t('stats_by_machine')}</h4>
+            <h4 style="margin:0 0 10px;font-size:0.82rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.5px;"><i class="fa-solid fa-chart-bar"></i> ${i18n.t('stats_by_machine')}</h4>
             <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px;">
-                ${Object.keys(logic.machines).map(key => `<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:0.8rem;min-width:75px;color:var(--text-muted);">${labels[key]}</span><div style="flex:1;background:var(--bg-secondary);border-radius:4px;height:22px;overflow:hidden;"><div style="width:${byMachine[key]/maxM*100}%;height:100%;background:${colors[key]};border-radius:4px;transition:width 0.6s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;min-width:${byMachine[key]>0?'22px':'0'};"> ${byMachine[key]>0?`<span style="color:#fff;font-size:0.75rem;font-weight:700;">${byMachine[key]}</span>`:''}</div></div></div>`).join('')}
+                ${Object.keys(logic.machines).map(key => `<div style="display:flex;align-items:center;gap:8px;"><span style="font-size:0.8rem;min-width:75px;color:var(--text-2);">${i18n.t(utils.getMachineKey(key))}</span><div style="flex:1;background:var(--bg2);border-radius:4px;height:22px;overflow:hidden;"><div style="width:${byMachine[key]/maxM*100}%;height:100%;background:${colors[key]};border-radius:4px;transition:width 0.6s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;min-width:${byMachine[key]>0?'22px':'0'};"> ${byMachine[key]>0?`<span style="color:#fff;font-size:0.75rem;font-weight:700;">${byMachine[key]}</span>`:''}</div></div></div>`).join('')}
             </div>
-            <h4 style="margin:0 0 10px;font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;"><i class="fa-solid fa-clock"></i> ${i18n.t('stats_by_hour')} ${adminViewMode==='active'?'(azi)':'(istoric)'}</h4>
-            <div style="display:flex;align-items:flex-end;gap:2px;height:70px;padding-bottom:18px;">
-                ${byHour.map((c, h) => `<div style="flex:1;min-width:18px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;" title="${h}:00 — ${c}"><div style="width:100%;background:${c>0?'#4f46e5':'var(--bg-secondary)'};height:${c>0?Math.max(c/maxH*50,6):4}px;border-radius:2px 2px 0 0;transition:height 0.4s;"></div><span style="font-size:0.58rem;color:var(--text-muted);margin-top:2px;">${h%4===0?h+'h':''}</span></div>`).join('')}
+            <h4 style="margin:0 0 10px;font-size:0.82rem;color:var(--text-2);text-transform:uppercase;letter-spacing:0.5px;"><i class="fa-solid fa-clock"></i> ${i18n.t('stats_by_hour')} ${adminViewMode==='active'?'(azi)':'(istoric)'}</h4>
+            <div style="overflow-x:auto;padding-bottom:4px;">
+            <div style="display:flex;align-items:flex-end;gap:2px;height:60px;min-width:360px;">
+                ${byHour.map((c, h) => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;" title="${h}:00 — ${c}"><div style="width:100%;background:${c>0?'#2EB5A5':'var(--border)'};height:${c>0?Math.max(c/maxH*44,5):3}px;border-radius:2px 2px 0 0;transition:height 0.4s;"></div><span style="font-size:0.55rem;color:var(--text-3);margin-top:2px;white-space:nowrap;">${h%4===0?h+'h':''}</span></div>`).join('')}
+            </div>
             </div>`;
     }
 };
