@@ -27,8 +27,8 @@ export const i18n = {
       "equipment": "Echipament",
       "machine1": "Mașina 1",
       "machine2": "Mașina 2",
-      "dryer1": "Uscător 1",
-      "dryer2": "Uscător 2",
+      "dryer1": "Uscător Jos",
+      "dryer2": "Uscător Sus",
       "date": "Data",
       "duration": "Durată",
       "start_time": "Ora de început",
@@ -132,11 +132,7 @@ export const i18n = {
       "repeat_success": "✅ Rezervare repetată adăugată pentru săptămâna viitoare!",
       "booking_confirmed": "Rezervare Confirmată! 🎉",
       "ok_close": "OK, Închide",
-      "download_pdf": "Descarcă Raport PDF",
-      "label_lang": "Limbă",
-      "label_notif": "Notificări",
-      "label_theme": "Temă",
-      "label_admin": "Admin"
+      "download_pdf": "Descarcă Raport PDF"
     },
     en: {
       "app_title": "Dormitory Laundry",
@@ -163,8 +159,8 @@ export const i18n = {
       "equipment": "Equipment",
       "machine1": "Washer 1",
       "machine2": "Washer 2",
-      "dryer1": "Dryer 1",
-      "dryer2": "Dryer 2",
+      "dryer1": "Dryer Bottom",
+      "dryer2": "Dryer Top",
       "date": "Date",
       "duration": "Duration",
       "start_time": "Start Time",
@@ -267,11 +263,7 @@ export const i18n = {
       "repeat_success": "✅ Repeat booking added for next week!",
       "booking_confirmed": "Booking Confirmed! 🎉",
       "ok_close": "OK, Close",
-      "download_pdf": "Download PDF Report",
-      "label_lang": "Language",
-      "label_notif": "Alerts",
-      "label_theme": "Theme",
-      "label_admin": "Admin"
+      "download_pdf": "Download PDF Report"
     }
   },
 
