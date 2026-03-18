@@ -17,4 +17,3 @@ export const FIREBASE_CONFIG = {
 };
 
 export const BOOKING_LIMIT = 4;
-export const LOCK_EXPIRATION_MS = 300000; // 5 minutes
