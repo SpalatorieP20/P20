@@ -69,9 +69,6 @@
                 <div class="header-actions">
                     <span class="version-tag">Beta 6.0</span>
                     <button type="button" id="langToggleBtn" class="btn-icon-only" title="Schimbă limba / Change language" aria-label="Schimbă limba (RO / EN)" style="font-weight: bold;">EN</button>
-                    <button id="notifToggleBtn" class="btn-icon-only" title="Activează notificările" aria-label="Notificări browser">
-                        <i class="fa-regular fa-bell" aria-hidden="true"></i>
-                    </button>
                     <button id="themeToggleBtn" class="btn-icon-only" title="Schimbă Tema" aria-label="Schimbă tema (întunecat / deschis)">
                         <i class="fa-solid fa-moon" aria-hidden="true"></i>
                     </button>
@@ -232,6 +229,19 @@
                             <input type="time" id="startTime" required class="time-input">
 
                         </div>
+
+
+
+                        <div class="form-group" style="margin-bottom: 10px;">
+                            <div style="display:flex;align-items:center;gap:8px;background:rgba(var(--primary-rgb),0.06);padding:10px 12px;border-radius:8px;border:1px solid rgba(var(--primary-rgb),0.15);">
+                                <input type="checkbox" id="repeatBooking" style="width:16px;height:16px;accent-color:var(--primary);cursor:pointer;">
+                                <label for="repeatBooking" style="font-size:0.88rem;cursor:pointer;color:var(--text-color);">
+                                    <i class="fa-solid fa-rotate" style="color:var(--primary);margin-right:4px;"></i>
+                                    <span data-i18n="repeat_booking">Rezervă și săptămâna viitoare (același interval)</span>
+                                </label>
+                            </div>
+                        </div>
+
                         <button type="submit" class="btn-primary">
 
                             <i class="fa-solid fa-check"></i> <span data-i18n="book_now">Rezervă Acum</span>
@@ -312,7 +322,7 @@
 
     <div id="modalOverlay" class="modal-overlay">
 
-        <div id="phoneModal" class="modal-box" style="display:none;">
+        <div id="phoneModal" class="modal-box">
 
             <button type="button" class="modal-close" aria-label="Închide">&times;</button>
 
