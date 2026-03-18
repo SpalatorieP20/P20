@@ -9,6 +9,7 @@ let deleteId = null;
 let isAdmin = false;
 let adminViewMode = 'active';
 let brokenMachines = {};
+let notifiedBookings = new Set();
 
 export const ui = {
     currentDate: new Date().toISOString().split('T')[0],
@@ -94,10 +95,55 @@ export const ui = {
                 this.updateBrokenMachineVisuals();
             }
         });
+
+        this.setupNotifications();
+        setInterval(() => this.checkAndNotify(), 60000);
     },
 
     // ─── NOTIFICATIONS ────────────────────────────────────────────────────────
+    setupNotifications() {
+        const notifBtn = document.getElementById('notifToggleBtn');
+        if (!notifBtn || !('Notification' in window)) return;
+        const updateBtn = () => {
+            const perm = Notification.permission;
+            const icon = notifBtn.querySelector('i');
+            if (perm === 'granted') { if (icon) icon.className = 'fa-solid fa-bell'; notifBtn.style.color = 'var(--success)'; notifBtn.title = i18n.t('notif_enabled'); }
+            else if (perm === 'denied') { if (icon) icon.className = 'fa-solid fa-bell-slash'; notifBtn.style.color = 'var(--danger)'; notifBtn.title = i18n.t('notif_denied'); }
+            else { if (icon) icon.className = 'fa-regular fa-bell'; notifBtn.style.color = ''; notifBtn.title = i18n.t('enable_notifs'); }
+        };
+        updateBtn();
+        notifBtn.onclick = async () => {
+            if (Notification.permission === 'default') {
+                const result = await Notification.requestPermission();
+                updateBtn();
+                utils.showToast(result === 'granted' ? i18n.t('notif_enabled') : i18n.t('notif_denied'), result === 'granted' ? 'success' : 'error');
+            } else {
+                utils.showToast(Notification.permission === 'granted' ? i18n.t('notif_enabled') : i18n.t('notif_denied'));
+            }
+        };
+    },
 
+    checkAndNotify() {
+        if (!('Notification' in window) || Notification.permission !== 'granted') return;
+        const savedName = localStorage.getItem('studentName');
+        if (!savedName) return;
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+        const currentMins = now.getHours() * 60 + now.getMinutes();
+        localBookings.filter(b => b.userName.toLowerCase() === savedName.toLowerCase() && b.date === today).forEach(b => {
+            const endMins = utils.timeToMins(b.startTime) + parseInt(b.duration);
+            const remaining = endMins - currentMins;
+            if (remaining >= 12 && remaining <= 17 && !notifiedBookings.has(b.id)) {
+                notifiedBookings.add(b.id);
+                const name = i18n.t(b.machineType === 'masina1' ? 'machine1' : b.machineType === 'masina2' ? 'machine2' : b.machineType === 'uscator1' ? 'dryer1' : 'dryer2');
+                new Notification(i18n.t('notif_title'), {
+                    body: `${name}: ${i18n.t('notif_body')}`,
+                    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🧺</text></svg>',
+                    tag: b.id
+                });
+            }
+        });
+    },
 
     // ─── BROKEN MACHINES ──────────────────────────────────────────────────────
     updateBrokenMachineVisuals() {
@@ -790,11 +836,11 @@ export const ui = {
         if (!container) return;
         const labels = { masina1: i18n.t('machine1'), masina2: i18n.t('machine2'), uscator1: i18n.t('dryer1'), uscator2: i18n.t('dryer2') };
         const icons = { masina1: '🧺', masina2: '🧺', uscator1: '🌬️', uscator2: '🌬️' };
-        container.innerHTML = `<h4 style="margin:0 0 10px;font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;"><i class="fa-solid fa-screwdriver-wrench"></i> ${i18n.t('machine_status_title')}</h4><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">${Object.keys(logic.machines).map(key => {
+                container.innerHTML = `<h4 style="margin:0 0 10px;font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;"><i class="fa-solid fa-screwdriver-wrench"></i> ${i18n.t('machine_status_title')}</h4><div style="display:flex;flex-direction:column;gap:8px;">${Object.keys(logic.machines).map(key => {
             const isBroken = !!brokenMachines[key];
-            return `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-secondary);padding:8px 10px;border-radius:8px;border:1px solid ${isBroken ? 'var(--danger)' : 'var(--border)'};">
-                <span style="font-size:0.85rem;">${icons[key]} ${labels[key]}</span>
-                <button class="broken-toggle" data-machine="${key}" style="font-size:0.75rem;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid ${isBroken ? 'var(--danger)' : 'var(--success)'};background:${isBroken ? 'rgba(220,38,38,0.1)' : 'rgba(34,197,94,0.1)'};color:${isBroken ? 'var(--danger)' : 'var(--success)'};">${isBroken ? i18n.t('broken_toggle_off') : i18n.t('broken_toggle_on')}</button>
+            return `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--bg-secondary);padding:10px 12px;border-radius:8px;border:1px solid ${isBroken ? 'var(--danger)' : 'var(--border)'};">
+                <span style="font-size:0.9rem;font-weight:500;">${icons[key]} ${labels[key]}</span>
+                <button class="broken-toggle" data-machine="${key}" style="flex-shrink:0;font-size:0.8rem;padding:5px 12px;border-radius:6px;cursor:pointer;border:1px solid ${isBroken ? 'var(--danger)' : 'var(--success)'};background:${isBroken ? 'rgba(220,38,38,0.1)' : 'rgba(34,197,94,0.1)'};color:${isBroken ? 'var(--danger)' : 'var(--success)'};">${isBroken ? i18n.t('broken_toggle_off') : i18n.t('broken_toggle_on')}</button>
             </div>`;
         }).join('')}</div>`;
     },
