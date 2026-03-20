@@ -69,7 +69,6 @@ export const ui = {
             const loader = document.getElementById('appLoader');
             if (loader) { loader.style.opacity = '0'; setTimeout(() => loader.style.display = 'none', 500); }
             this.renderAll();
-            if (localStorage.getItem('studentName')) this.renderMyBookings();
         }, (error) => {
             console.error("Firebase error:", error);
             const qF = firebaseService.query(firebaseService.bookingsCollection, firebaseService.where("date", ">=", yesterday), firebaseService.orderBy("date"));
@@ -94,6 +93,8 @@ export const ui = {
                 if (maintenanceMode && !isAdmin) overlay.style.display = 'flex';
                 else overlay.style.display = 'none';
                 this.updateBrokenMachineVisuals();
+                this.renderSchedule(); // re-render orar cu starea corectă a mașinilor
+                this.updateMachineStatus();
             }
         });
 
@@ -146,20 +147,35 @@ export const ui = {
         const currentSecs = now.getSeconds();
         Object.keys(logic.machines).forEach(machineKey => {
             const statusEl = document.getElementById(`status-${machineKey}`);
+            const card = document.querySelector(`.selector-card[data-value="${machineKey}"]`);
             if (!statusEl) return;
-            if (brokenMachines[machineKey]) { statusEl.textContent = i18n.t('broken'); statusEl.className = 'live-status broken'; return; }
+            if (brokenMachines[machineKey]) {
+                statusEl.textContent = i18n.t('broken');
+                statusEl.className = 'live-status broken';
+                if (card) card.classList.remove('card-free');
+                return;
+            }
             const active = localBookings.find(b => {
                 if (b.machineType !== machineKey || b.date !== today) return false;
                 const sm = utils.timeToMins(b.startTime), em = sm + parseInt(b.duration);
                 return currentMins >= sm && currentMins < em;
             });
             if (active) {
-                const endMins = utils.timeToMins(active.startTime) + parseInt(active.duration);
-                const totalSecs = (endMins - currentMins) * 60 - currentSecs;
+                const startMins = utils.timeToMins(active.startTime);
+                const endMins = startMins + parseInt(active.duration);
+                const totalSecsRaw = (endMins - currentMins) * 60 - currentSecs;
+                const totalSecs = Math.max(0, totalSecsRaw);
                 const mL = Math.floor(totalSecs / 60), sL = totalSecs % 60;
-                statusEl.textContent = `${i18n.t("busy")} ${mL}:${sL.toString().padStart(2, '0')}`;
+                const elapsed = currentMins - startMins;
+                const progressPct = Math.min(100, Math.round((elapsed / parseInt(active.duration)) * 100));
                 statusEl.className = 'live-status busy';
-            } else { statusEl.textContent = i18n.t("free"); statusEl.className = 'live-status free'; }
+                statusEl.innerHTML = `<span class="busy-text">${i18n.t("busy")} – ${i18n.t("busy_remaining")} ${mL}:${sL.toString().padStart(2, '0')}</span><div class="status-progress-track"><div class="status-progress-fill" style="width:${progressPct}%"></div></div>`;
+                if (card) card.classList.remove('card-free');
+            } else {
+                statusEl.textContent = i18n.t("free");
+                statusEl.className = 'live-status free';
+                if (card) card.classList.add('card-free');
+            }
         });
     },
 
@@ -237,6 +253,25 @@ export const ui = {
             });
         });
 
+        document.getElementById('modalOverlay').addEventListener('click', (e) => {
+            if (e.target.id === 'modalOverlay') {
+                ['modalOverlay','phoneModal','confirmModal','deletePinModal','successModal'].forEach(id => {
+                    const el = document.getElementById(id); if (el) el.style.display = 'none';
+                });
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const overlay = document.getElementById('modalOverlay');
+                if (overlay && overlay.style.display !== 'none') {
+                    ['modalOverlay','phoneModal','confirmModal','deletePinModal','successModal'].forEach(id => {
+                        const el = document.getElementById(id); if (el) el.style.display = 'none';
+                    });
+                }
+            }
+        });
+
         const successClose = document.getElementById('successModalCloseBtn');
         if (successClose) successClose.onclick = () => { document.getElementById('successModal').style.display = 'none'; document.getElementById('modalOverlay').style.display = 'none'; };
 
@@ -246,6 +281,9 @@ export const ui = {
         if (confirmPinBtn) confirmPinBtn.onclick = () => this.confirmPinDelete();
         const cancelPinBtn = document.getElementById('cancelPinDeleteBtn');
         if (cancelPinBtn) cancelPinBtn.onclick = () => { document.getElementById('deletePinModal').style.display = 'none'; };
+
+        const pinInput = document.getElementById('deletePinInput');
+        if (pinInput) pinInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') this.confirmPinDelete(); });
 
         document.getElementById('maintenanceToggle').onchange = async (e) => {
             if (!firebaseService.auth?.currentUser) { e.target.checked = !e.target.checked; return; }
@@ -443,6 +481,31 @@ export const ui = {
         ['phoneModal','confirmModal','adminModal','deletePinModal'].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
         document.getElementById('modalOverlay').style.display = 'flex';
         modal.style.display = 'block';
+        this.launchConfetti();
+    },
+
+    // ─── CONFETTI ─────────────────────────────────────────────────────────────
+    launchConfetti() {
+        const colors = ['#1A7A6E','#F59E0B','#EF4444','#3B82F6','#8B5CF6','#EC4899','#10B981','#F97316'];
+        const container = document.createElement('div');
+        container.className = 'confetti-container';
+        document.body.appendChild(container);
+        for (let i = 0; i < 55; i++) {
+            const piece = document.createElement('div');
+            piece.className = 'confetti-piece';
+            const size = 6 + Math.random() * 8;
+            piece.style.cssText = `
+                left: ${Math.random() * 100}%;
+                top: ${-10 - Math.random() * 30}px;
+                width: ${size}px; height: ${size}px;
+                background: ${colors[Math.floor(Math.random() * colors.length)]};
+                border-radius: ${Math.random() > 0.5 ? '50%' : '2px'};
+                animation-duration: ${1.4 + Math.random() * 1.4}s;
+                animation-delay: ${Math.random() * 0.7}s;
+            `;
+            container.appendChild(piece);
+        }
+        setTimeout(() => container.remove(), 3200);
     },
 
     // ─── HANDLE BOOKING ───────────────────────────────────────────────────────
@@ -515,7 +578,7 @@ export const ui = {
     },
 
     renderAll() {
-        this.renderSchedule(); this.renderMyBookings(); this.renderUpcoming(); this.updateMachineStatus();
+        this.renderSchedule(); this.renderMyBookings(); this.renderUpcoming(); this.updateMachineStatus(); this.renderPeakHours();
         if (document.getElementById('adminContent').style.display === 'block') this.renderAdminDashboard();
     },
 
@@ -531,12 +594,17 @@ export const ui = {
         ];
 
         Object.keys(logic.machines).forEach(machineKey => {
-            const col = document.createElement('div'); col.className = 'machine-column';
-            const header = document.createElement('div'); header.className = 'machine-header';
+            const col = document.createElement('div');
             const isBroken = !!brokenMachines[machineKey];
+            col.className = `machine-column${isBroken ? ' machine-column-broken' : ''}`;
+            const header = document.createElement('div');
+            header.className = `machine-header${isBroken ? ' machine-header-broken' : ''}`;
             const label = i18n.t(utils.getMachineKey(machineKey));
-            header.innerHTML = `<small>${machineKey.includes('masina') ? '🧺' : '🌬️'}</small><br>${label}${isBroken ? ' 🔧' : ''}`;
-            if (isBroken) header.style.color = 'var(--danger)';
+            if (isBroken) {
+                header.innerHTML = `<span class="broken-badge-header">🔧 ${i18n.t('broken').replace('🔧 ', '')}</span><br><span style="font-weight:700">${label}</span>`;
+            } else {
+                header.innerHTML = `<small>${machineKey.includes('masina') ? '🧺' : '🌬️'}</small><br>${label}`;
+            }
             col.appendChild(header);
 
             slots.forEach(slot => {
@@ -568,7 +636,8 @@ export const ui = {
                     div.title = `${i18n.t("reserved")} ${booking.userName}`;
                     div.onclick = () => this.showPhoneModal(booking);
                 } else if (isBroken) {
-                    div.textContent = slot; div.title = i18n.t('broken');
+                    div.innerHTML = `<span class="broken-slot-label">🔧</span>`;
+                    div.title = i18n.t('broken');
                 } else {
                     div.textContent = slot;
                     div.onclick = (ev) => {
@@ -640,10 +709,11 @@ export const ui = {
     async confirmPinDelete() {
         const input = document.getElementById('deletePinInput');
         const enteredPin = input.value.trim();
-        if (!enteredPin || !/^\d{4}$/.test(enteredPin)) { utils.showToast(i18n.t("enter_4_pin_err"), "error"); return; }
         const booking = [...localBookings, ...historyBookings].find(b => b.id === deleteId);
         if (!booking) { utils.showToast(i18n.t("booking_not_found_err"), "error"); document.getElementById('modalOverlay').style.display = 'none'; return; }
+        // Admin sare direct fara PIN
         if (firebaseService.auth?.currentUser) { await this.performDelete(deleteId); document.getElementById('deletePinModal').style.display = 'none'; return; }
+        if (!enteredPin || !/^\d{4}$/.test(enteredPin)) { utils.showToast(i18n.t("enter_4_pin_err"), "error"); return; }
         const hasPin = booking.pinHash || booking.code;
         if (!hasPin) { utils.showToast(i18n.t("old_booking_no_pin_err"), "error"); return; }
         let pinOk = booking.pinHash ? (await utils.hashPin(enteredPin, booking.id)) === booking.pinHash : booking.code === enteredPin;
@@ -691,7 +761,81 @@ export const ui = {
         container.innerHTML = bookings.length ? bookings.map(b => {
             const end = utils.minsToTime(utils.timeToMins(b.startTime) + parseInt(b.duration));
             return `<div class="booking-item"><div class="booking-info"><strong>${utils.escapeHtml(i18n.t(utils.getMachineKey(b.machineType)))}</strong><span>${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(b.startTime)} - ${utils.escapeHtml(end)}</span></div></div>`;
-        }).join('') : `<div class="empty-state">${i18n.t("no_bookings_found")}</div>`;
+        }).join('') + `<p class="delete-hint"><i class="fa-solid fa-circle-info"></i> ${i18n.t('delete_hint')}</p><p class="delete-hint" style="margin-top:4px;"><i class="fa-solid fa-phone"></i> ${i18n.t('call_hint')}</p>` : `<div class="empty-state">${i18n.t("no_bookings_found")}</div>`;
+    },
+
+    // ─── ORE DE VÂRF ──────────────────────────────────────────────────────────
+    renderPeakHours() {
+        const container = document.getElementById('peakHoursContainer');
+        if (!container) return;
+
+        // Filtrăm doar ultimele 3 zile (fără viitor)
+        const today = new Date().toISOString().split('T')[0];
+        const cutoff = utils.addDays(today, -3);
+        const recentBookings = localBookings.filter(b => b.date >= cutoff && b.date <= today);
+
+        // Grupăm după ora de start (0-23)
+        const byHour = new Array(24).fill(0);
+        recentBookings.forEach(b => {
+            const h = parseInt((b.startTime || '0').split(':')[0]);
+            if (h >= 0 && h < 24) byHour[h]++;
+        });
+
+        const totalBookings = byHour.reduce((a, b) => a + b, 0);
+        if (totalBookings === 0) {
+            container.innerHTML = `<p class="peak-summary" style="color:var(--text-3)">${i18n.t('peak_no_data')}</p>`;
+            return;
+        }
+
+        const maxVal = Math.max(...byHour, 1);
+
+        // Afișăm 6:00–23:00
+        const startH = 6, endH = 23;
+        const displayHours = [];
+        for (let h = startH; h <= endH; h++) displayHours.push(h);
+
+        // Găsim top ore
+        const sorted = [...byHour.map((v, i) => ({ h: i, v }))]
+            .filter(x => x.h >= startH && x.h <= endH && x.v > 0)
+            .sort((a, b) => b.v - a.v);
+        const top = sorted.slice(0, 3);
+        const topHours = new Set(top.map(x => x.h));
+
+        const bars = displayHours.map(h => {
+            const val = byHour[h];
+            const heightPct = val > 0 ? Math.max(8, Math.round((val / maxVal) * 100)) : 4;
+            let cls = 'peak-low';
+            if (topHours.has(h)) {
+                cls = sorted[0].h === h ? 'peak-high' : 'peak-medium';
+            }
+            return `<div class="peak-bar-wrap" title="${h}:00 — ${val} ${i18n.t('peak_bookings')}">
+                <div class="peak-bar ${cls}" style="height:${heightPct}%"></div>
+            </div>`;
+        }).join('');
+
+        const labels = displayHours.map(h => {
+            return `<span class="peak-hour-label">${h % 4 === 0 ? h + 'h' : ''}</span>`;
+        }).join('');
+
+        let summaryText = '';
+        if (top.length > 0) {
+            // Găsim fereastra de 3 ore consecutive cu cele mai multe rezervări
+            let bestStart = top[0].h, bestCount = 0;
+            for (let h = startH; h <= endH - 2; h++) {
+                const count = byHour[h] + byHour[h + 1] + byHour[h + 2];
+                if (count > bestCount) { bestCount = count; bestStart = h; }
+            }
+            const peakEnd = bestStart + 3;
+            summaryText = i18n.currentLang === 'ro'
+                ? `🔥 Cel mai aglomerat: <strong>${bestStart}:00–${peakEnd}:00</strong>`
+                : `🔥 Busiest window: <strong>${bestStart}:00–${peakEnd}:00</strong>`;
+        }
+
+        container.innerHTML = `
+            <div class="peak-hours-bars">${bars}</div>
+            <div class="peak-hour-labels">${labels}</div>
+            ${summaryText ? `<p class="peak-summary">${summaryText}</p>` : ''}
+        `;
     },
 
     renderUpcoming() {
