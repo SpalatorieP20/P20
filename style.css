@@ -277,8 +277,53 @@ select {
     box-shadow: 0 0 0 3px rgba(26,122,110,.12);
 }
 .selector-card.selected span { color: var(--accent); }
-.selector-card.broken { border-color: var(--danger) !important; opacity: 0.6; }
-.selector-card.broken::after { content: '🔧'; position: absolute; top: 5px; right: 7px; font-size: 0.75rem; }
+.selector-card.broken {
+    border: 2px solid var(--danger) !important;
+    background: var(--danger-light) !important;
+    opacity: 1;
+    cursor: not-allowed;
+    position: relative;
+    overflow: hidden;
+}
+.selector-card.broken::before {
+    content: 'DEFECT';
+    position: absolute; top: 0; left: 0; right: 0;
+    background: var(--danger); color: #fff;
+    font-size: 0.6rem; font-weight: 800;
+    letter-spacing: 1px; text-align: center;
+    padding: 2px 0;
+    z-index: 1;
+}
+.selector-card.broken .icon { opacity: 0.4; margin-top: 8px; }
+.selector-card.broken span { color: var(--danger) !important; }
+
+/* ─── SCHEDULE — coloana defectă ─────────────────────────────────────────────── */
+.machine-column-broken { background: rgba(217,79,58,.03); }
+.machine-header-broken {
+    background: var(--danger-light) !important;
+    color: var(--danger) !important;
+    border-bottom: 2px solid var(--danger) !important;
+}
+.broken-badge-header {
+    display: inline-block; font-size: 0.72rem;
+    font-weight: 800; letter-spacing: 0.3px;
+    color: var(--danger);
+}
+.time-slot.broken-slot {
+    background-color: rgba(217,79,58,.07);
+    background-image: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 6px,
+        rgba(217,79,58,.15) 6px,
+        rgba(217,79,58,.15) 12px
+    );
+    cursor: not-allowed;
+}
+.broken-slot-label {
+    font-size: 0.75rem; opacity: 0.5;
+    pointer-events: none; user-select: none;
+}
 
 /* ─── PRIMARY BUTTON ─────────────────────────────────────────────────────────── */
 .btn-primary {
@@ -320,6 +365,7 @@ select {
 }
 .btn-delete:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-light); }
 .empty-state { text-align: center; padding: 24px 16px; color: var(--text-3); font-size: 0.85rem; }
+.delete-hint { font-size: 0.75rem; color: var(--text-3); margin-top: 8px; padding: 6px 10px; border-radius: 6px; background: var(--bg2); display: flex; align-items: center; gap: 6px; line-height: 1.4; }
 
 /* ─── SCHEDULE ───────────────────────────────────────────────────────────────── */
 .schedule-container { min-height: 600px; display: flex; flex-direction: column; overflow: hidden; }
@@ -374,17 +420,6 @@ select {
     background: var(--accent-mid); color: var(--accent-2); font-weight: 700;
     outline: 2px solid var(--accent); outline-offset: -2px;
 }
-.time-slot.broken-slot {
-    background-color: rgba(217,79,58,.06);
-    background-image: repeating-linear-gradient(
-        45deg,
-        transparent,
-        transparent 5px,
-        rgba(217,79,58,.13) 5px,
-        rgba(217,79,58,.13) 10px
-    );
-    cursor: not-allowed; color: var(--text-3); opacity: 0.8;
-}
 .time-slot.occupied {
     background: var(--accent-mid);
     border-bottom-color: var(--accent-light);
@@ -410,8 +445,86 @@ select {
     padding: 2px 7px; border-radius: 20px; display: inline-block; letter-spacing: 0.2px;
 }
 .live-status.free { color: var(--success); background: var(--success-light); }
-.live-status.busy { color: var(--danger); background: var(--danger-light); }
 .live-status.broken { color: var(--warn); background: var(--warn-light); }
+
+/* ─── BUSY STATUS CU PROGRESS BAR ───────────────────────────────────────────── */
+.live-status.busy {
+    display: block; width: 100%; padding: 4px 8px 5px;
+    border-radius: 8px; background: var(--danger-light); color: var(--danger);
+    box-sizing: border-box;
+}
+.live-status.busy .busy-text {
+    display: block; font-size: 0.68rem; font-weight: 700;
+    letter-spacing: 0.2px; margin-bottom: 4px;
+}
+.live-status.busy .status-progress-track {
+    width: 100%; height: 4px; background: rgba(0,0,0,0.1);
+    border-radius: 2px; overflow: hidden;
+}
+.live-status.busy .status-progress-fill {
+    height: 100%; border-radius: 2px;
+    background: var(--danger);
+    transition: width 1s linear;
+}
+
+/* ─── SHIMMER / PULSE pe mașinile libere ─────────────────────────────────────── */
+@keyframes cardFreePulse {
+    0%   { box-shadow: 0 0 0 0 rgba(26,122,110,0.0); }
+    40%  { box-shadow: 0 0 0 5px rgba(26,122,110,0.18); }
+    100% { box-shadow: 0 0 0 0 rgba(26,122,110,0.0); }
+}
+.selector-card.card-free:not(.selected) {
+    animation: cardFreePulse 2.8s ease-in-out infinite;
+}
+
+/* ─── CONFETTI ────────────────────────────────────────────────────────────────── */
+.confetti-container {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 9999; overflow: hidden;
+}
+.confetti-piece {
+    position: absolute; width: 9px; height: 9px;
+    border-radius: 2px; opacity: 0;
+    animation: confettiFall linear forwards;
+}
+@keyframes confettiFall {
+    0%   { transform: translateY(-20px) rotate(0deg);   opacity: 1; }
+    80%  { opacity: 1; }
+    100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+}
+
+/* ─── ORE DE VÂRF ─────────────────────────────────────────────────────────────── */
+.peak-hours-card { }
+.peak-hours-bars {
+    display: flex; align-items: flex-end; gap: 3px;
+    height: 48px; margin-top: 10px; margin-bottom: 6px;
+}
+.peak-bar-wrap {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: flex-end;
+    cursor: default;
+}
+.peak-bar {
+    width: 100%; border-radius: 2px 2px 0 0;
+    transition: height 0.5s ease;
+    min-height: 2px;
+}
+.peak-bar.peak-high   { background: var(--danger); }
+.peak-bar.peak-medium { background: var(--warn); }
+.peak-bar.peak-low    { background: var(--success); }
+.peak-hour-labels {
+    display: flex; gap: 3px;
+}
+.peak-hour-label {
+    flex: 1; text-align: center;
+    font-size: 0.58rem; color: var(--text-3);
+    overflow: hidden; white-space: nowrap;
+}
+.peak-summary {
+    font-size: 0.78rem; color: var(--text-2);
+    margin-top: 6px; text-align: center;
+    line-height: 1.5;
+}
 
 /* ─── FOOTER ─────────────────────────────────────────────────────────────────── */
 .app-footer { text-align: center; margin-top: 32px; color: var(--text-3); font-size: 0.78rem; }
@@ -639,7 +752,31 @@ body.admin-mode #confirmModal p { color: #9E9288; }
     .admin-bookings-list { max-height: none; overflow: visible; }
     .filter-wrapper { width: 100%; }
     .filter-wrapper input[type="date"] { width: 100%; }
+
+    /* ─── Selector cards: status mai compact pe mobil ────────────────────── */
+    .selector-card {
+        padding: 10px 6px;
+    }
+    .selector-card .icon { font-size: 1.3rem; margin-bottom: 2px; }
+    .selector-card span { font-size: 0.72rem; }
+    .live-status.busy .busy-text { font-size: 0.62rem; }
+    .live-status.busy { padding: 3px 6px 4px; }
+
+    /* ─── Peak hours: bare mai înalte, labels mai lizibile ───────────────── */
+    .peak-hours-bars { height: 44px; gap: 2px; }
+    .peak-hour-label { font-size: 0.6rem; }
+    .peak-summary { font-size: 0.75rem; }
+
+    /* ─── Schedule grid: scroll orizontal clar pe mobil ─────────────────── */
+    .schedule-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .schedule-grid { min-width: 480px; }
+
+    /* ─── Modal: padding mai mic pe ecrane mici ──────────────────────────── */
+    .modal-box { padding: 20px 16px; }
+    .modal-overlay { padding: 12px; }
 }
 @media (max-width: 380px) {
     .form-row { grid-template-columns: 1fr; }
+    .visual-selector { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+    .peak-hours-bars { height: 38px; }
 }
