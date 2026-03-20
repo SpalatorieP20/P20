@@ -367,6 +367,19 @@ select {
 .empty-state { text-align: center; padding: 24px 16px; color: var(--text-3); font-size: 0.85rem; }
 .delete-hint { font-size: 0.75rem; color: var(--text-3); margin-top: 8px; padding: 6px 10px; border-radius: 6px; background: var(--bg2); display: flex; align-items: center; gap: 6px; line-height: 1.4; }
 
+/* ─── TIPS CARD ───────────────────────────────────────────────────────────────── */
+.tips-list { display: flex; flex-direction: column; gap: 6px; }
+.tip-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    font-size: 0.8rem; color: var(--text-2); line-height: 1.5;
+    padding: 7px 10px; border-radius: 8px;
+    background: var(--bg2);
+}
+.tip-item i {
+    font-size: 0.75rem; color: var(--accent);
+    margin-top: 2px; flex-shrink: 0; width: 14px; text-align: center;
+}
+
 /* ─── SCHEDULE ───────────────────────────────────────────────────────────────── */
 .schedule-container { min-height: 600px; display: flex; flex-direction: column; overflow: hidden; }
 .schedule-header {
@@ -500,8 +513,9 @@ select {
     height: 80px; margin-top: 12px; margin-bottom: 4px;
 }
 .peak-bar-wrap {
-    flex: 1; display: flex; flex-direction: column;
-    align-items: center; justify-content: flex-end;
+    flex: 1; height: 100%;
+    display: flex; flex-direction: column;
+    align-items: stretch; justify-content: flex-end;
     cursor: default;
 }
 .peak-bar {
@@ -764,13 +778,14 @@ body.admin-mode #confirmModal p { color: #9E9288; }
     .live-status.busy { padding: 3px 6px 4px; }
 
     /* ─── Peak hours: înălțime OK și pe mobil ───────────────────────────── */
-    .peak-hours-bars { height: 70px; gap: 2px; }
+    .peak-hours-bars { height: 72px; gap: 2px; }
     .peak-hour-label { font-size: 0.6rem; }
     .peak-summary { font-size: 0.78rem; }
 
-    /* ─── Schedule grid: scroll orizontal clar pe mobil ─────────────────── */
-    .schedule-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .schedule-grid { min-width: 480px; }
+    /* ─── Schedule grid: scroll orizontal doar pe grid, nu pe header ─── */
+    .schedule-container { overflow: hidden; }
+    .schedule-grid { overflow-x: auto; overflow-y: auto; -webkit-overflow-scrolling: touch; min-width: unset; }
+    .schedule-grid > .machine-column { min-width: 120px; }
 
     /* ─── Modal: padding mai mic pe ecrane mici ──────────────────────────── */
     .modal-box { padding: 20px 16px; }
@@ -779,5 +794,5 @@ body.admin-mode #confirmModal p { color: #9E9288; }
 @media (max-width: 380px) {
     .form-row { grid-template-columns: 1fr; }
     .visual-selector { grid-template-columns: repeat(2, 1fr); gap: 6px; }
-    .peak-hours-bars { height: 60px; }
+    .peak-hours-bars { height: 64px; }
 }
