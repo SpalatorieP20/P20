@@ -1,783 +1,515 @@
-/* ─── GOOGLE FONTS ─────────────────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+<!DOCTYPE html>
 
-/* ─── DESIGN TOKENS ─────────────────────────────────────────────────────────── */
-:root {
-    --bg:           #F7F4EF;
-    --bg2:          #EDEAE3;
-    --surface:      #FFFFFF;
-    --surface2:     #F2EFE9;
-    --border:       #E0DDD5;
-    --border-soft:  #EDEAE3;
+<html lang="ro">
 
-    --text:         #1C1916;
-    --text-2:       #6B6560;
-    --text-3:       #A09990;
+<head>
 
-    --accent:       #1A7A6E;
-    --accent-2:     #145F56;
-    --accent-light: #E8F5F3;
-    --accent-mid:   #C3E8E3;
+    <meta charset="UTF-8">
 
-    --danger:       #D94F3A;
-    --danger-light: #FDECEA;
-    --success:      #2E8B6A;
-    --success-light:#E6F5EF;
-    --warn:         #C97A1A;
-    --warn-light:   #FEF3E2;
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    --radius-sm:    6px;
-    --radius:       10px;
-    --radius-lg:    16px;
-    --radius-xl:    20px;
+    <title data-i18n="app_title">Spălătorie Cămin</title>
 
-    --shadow-xs:    0 1px 3px rgba(28,25,22,.06);
-    --shadow-sm:    0 2px 8px rgba(28,25,22,.08);
-    --shadow:       0 4px 16px rgba(28,25,22,.10);
-    --shadow-lg:    0 8px 32px rgba(28,25,22,.14);
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-    --transition:   0.18s ease;
-    --font:         'Outfit', system-ui, sans-serif;
-}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-body.dark-mode {
-    --bg:           #16120E;
-    --bg2:          #1E1A15;
-    --surface:      #241F19;
-    --surface2:     #2C2720;
-    --border:       #3A342C;
-    --border-soft:  #2C2720;
+    <link rel="stylesheet" href="style.css">
 
-    --text:         #F0EBE3;
-    --text-2:       #9E9288;
-    --text-3:       #6A6058;
+</head>
 
-    --accent:       #2EB5A5;
-    --accent-2:     #3DCABA;
-    --accent-light: #1A2E2B;
-    --accent-mid:   #1F3E39;
+<body>
 
-    --danger:       #F06B56;
-    --danger-light: #2E1A16;
-    --success:      #4DB890;
-    --success-light:#162B21;
-    --warn:         #E8A040;
-    --warn-light:   #2A1E0A;
+    <div id="appLoader" class="app-loader">
+        <div class="spinner"></div>
+        <p id="loaderText" data-i18n="connecting">Se conectează...</p>
+        <button id="reloadBtn" class="btn-ghost" style="display:none; margin-top:15px;" data-i18n="retry">Reîncearcă</button>
+    </div>
 
-    --shadow-xs:    0 1px 3px rgba(0,0,0,.2);
-    --shadow-sm:    0 2px 8px rgba(0,0,0,.25);
-    --shadow:       0 4px 16px rgba(0,0,0,.3);
-    --shadow-lg:    0 8px 32px rgba(0,0,0,.4);
-}
 
-/* ─── RESET ──────────────────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-body {
-    font-family: var(--font);
-    background: var(--bg);
-    color: var(--text);
-    font-size: 15px;
-    line-height: 1.5;
-    transition: background var(--transition), color var(--transition);
-    padding-bottom: 40px;
-    -webkit-font-smoothing: antialiased;
-}
+    <div id="maintenanceOverlay" class="maintenance-screen" style="display: none;">
 
-/* ─── LOADER ─────────────────────────────────────────────────────────────────── */
-.app-loader {
-    position: fixed; inset: 0;
-    background: var(--bg);
-    z-index: 9999;
-    display: flex; flex-direction: column;
-    justify-content: center; align-items: center;
-    gap: 14px;
-    transition: opacity 0.5s;
-}
-.spinner {
-    width: 36px; height: 36px;
-    border: 3px solid var(--border);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-.app-loader p { color: var(--text-2); font-size: 0.875rem; font-weight: 500; }
+        <div class="maintenance-content">
 
-/* ─── MAINTENANCE ────────────────────────────────────────────────────────────── */
-.maintenance-screen {
-    position: fixed; inset: 0;
-    background: var(--bg);
-    z-index: 2000;
-    display: flex; justify-content: center; align-items: center;
-    text-align: center;
-}
-.maintenance-content { padding: 40px 30px; max-width: 460px; }
-.maintenance-content i { color: var(--warn); margin-bottom: 24px; }
-.maintenance-content h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 10px; }
-.maintenance-content p { color: var(--text-2); font-size: 1rem; }
-.maintenance-sub { font-size: 0.875rem !important; margin-top: 8px; }
+            <i class="fa-solid fa-screwdriver-wrench fa-4x fa-bounce"></i>
 
-/* ─── GHOST BUTTON ───────────────────────────────────────────────────────────── */
-.btn-ghost {
-    background: transparent;
-    border: 1.5px solid var(--border);
-    color: var(--text-2);
-    padding: 8px 16px;
-    border-radius: var(--radius);
-    cursor: pointer;
-    font-size: 0.825rem;
-    font-family: var(--font);
-    font-weight: 500;
-    transition: all var(--transition);
-    display: inline-flex; align-items: center; gap: 6px;
-}
-.btn-ghost:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: var(--accent-light);
-}
+            <h1 data-i18n="maintenance_title">Mentenanță în Curs</h1>
 
-/* ─── LAYOUT ─────────────────────────────────────────────────────────────────── */
-.app-container { max-width: 1400px; margin: 0 auto; padding: 20px 24px; }
-.main-layout {
-    display: grid;
-    grid-template-columns: 360px 1fr;
-    gap: 20px;
-    align-items: start;
-}
-.sidebar { display: flex; flex-direction: column; gap: 16px; }
+            <p data-i18n="maintenance_desc1">Revenim imediat! Facem curățenie în sistem. 🧹</p>
 
-/* ─── HEADER ─────────────────────────────────────────────────────────────────── */
-.main-header {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 14px 20px;
-    margin-bottom: 20px;
-    box-shadow: var(--shadow-xs);
-}
-.header-content { display: flex; justify-content: space-between; align-items: center; }
-.logo-area { display: flex; align-items: center; gap: 14px; color: var(--accent); }
-.logo-area h1 { font-size: 1.1rem; font-weight: 700; color: var(--text); letter-spacing: -0.3px; }
-.logo-area p { font-size: 0.8rem; color: var(--text-2); font-weight: 400; }
-.credit-tag { display: block; font-size: 0.7rem; color: var(--text-3); margin-top: 1px; font-weight: 400; }
-.header-actions { display: flex; gap: 6px; align-items: center; }
-.version-tag {
-    padding: 4px 10px;
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    color: var(--text-3);
-    font-size: 0.72rem; font-weight: 600;
-    border-radius: 20px; letter-spacing: 0.3px;
-}
-.btn-labeled { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.btn-label { font-size: 0.58rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.3px; user-select: none; white-space: nowrap; }
-.btn-icon-only {
-    width: 36px; height: 36px;
-    border-radius: var(--radius);
-    border: 1.5px solid var(--border);
-    background: var(--surface);
-    cursor: pointer;
-    color: var(--text-2);
-    font-family: var(--font); font-size: 0.8rem; font-weight: 600;
-    display: flex; align-items: center; justify-content: center;
-    transition: all var(--transition);
-}
-.btn-icon-only:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+            <p class="maintenance-sub" data-i18n="maintenance_desc2">Ne vedem în câteva minute.</p>
 
-/* ─── CARDS ──────────────────────────────────────────────────────────────────── */
-.card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-xs);
-    overflow: hidden;
-}
-.card-header {
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--border-soft);
-    background: var(--surface2);
-}
-.card-header h2 {
-    font-size: 0.9rem; font-weight: 600; color: var(--text);
-    display: flex; align-items: center; gap: 8px;
-}
-.card-header h2 i { color: var(--accent); font-size: 0.9rem; }
+            <button id="maintenanceAdminBtn" class="btn-ghost" data-i18n="im_admin">Sunt Administrator</button>
 
-/* ─── FORM ───────────────────────────────────────────────────────────────────── */
-form { padding: 18px; }
-.form-group { margin-bottom: 14px; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-label {
-    font-size: 0.78rem; font-weight: 600; color: var(--text-2);
-    margin-bottom: 5px; display: block;
-    text-transform: uppercase; letter-spacing: 0.4px;
-}
-.input-wrapper { position: relative; display: flex; align-items: center; }
-.input-wrapper i { position: absolute; left: 11px; color: var(--text-3); font-size: 0.85rem; pointer-events: none; }
-input:not([type="checkbox"]):not([type="radio"]), select {
-    width: 100%;
-    padding: 9px 12px 9px 34px;
-    border: 1.5px solid var(--border);
-    border-radius: var(--radius);
-    font-size: 0.9rem; font-family: var(--font);
-    background: var(--bg); color: var(--text);
-    transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
-    appearance: none;
-}
-input:focus, select:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(26,122,110,.12);
-    background: var(--surface);
-}
-input[type="date"], input[type="time"], #duration { padding-left: 12px; }
-.time-input { padding-left: 12px !important; }
-body.dark-mode input[type="date"] { color-scheme: dark; }
-body.dark-mode input[type="time"] { color-scheme: dark; }
-select {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23A09990' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    background-repeat: no-repeat; background-position: right 10px center; padding-right: 32px;
-}
-.gdpr-consent-wrapper { margin-top: 8px; display: flex; align-items: flex-start; gap: 8px; }
-.gdpr-consent-wrapper input[type="checkbox"] {
-    width: 15px; height: 15px; margin-top: 2px; padding: 0;
-    accent-color: var(--accent); flex-shrink: 0;
-}
-.gdpr-consent-wrapper label {
-    font-size: 0.82rem; line-height: 1.4; color: var(--text-2);
-    cursor: pointer; text-transform: none; letter-spacing: 0; font-weight: 400;
-}
-.privacy-note {
-    background: var(--accent-light);
-    border-left: 2px solid var(--accent);
-    padding: 10px 12px; margin-top: 10px;
-    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-    font-size: 0.8rem; color: var(--text-2); line-height: 1.5;
-}
-.privacy-note p { margin-bottom: 4px; }
-.privacy-note p:last-child { margin-bottom: 0; }
+        </div>
 
-/* ─── VISUAL SELECTOR ────────────────────────────────────────────────────────── */
-.visual-selector { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 6px; }
-.selector-card {
-    background: var(--bg);
-    border: 1.5px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px 10px; text-align: center;
-    cursor: pointer; transition: all var(--transition); position: relative;
-}
-.selector-card .icon { font-size: 1.6rem; margin-bottom: 4px; }
-.selector-card span { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-2); }
-.selector-card .live-status { margin-top: 5px; }
-.selector-card:hover { border-color: var(--accent); background: var(--accent-light); }
-.selector-card.selected {
-    border-color: var(--accent); background: var(--accent-light);
-    box-shadow: 0 0 0 3px rgba(26,122,110,.12);
-}
-.selector-card.selected span { color: var(--accent); }
-.selector-card.broken {
-    border: 2px solid var(--danger) !important;
-    background: var(--danger-light) !important;
-    opacity: 1;
-    cursor: not-allowed;
-    position: relative;
-    overflow: hidden;
-}
-.selector-card.broken::before {
-    content: 'DEFECT';
-    position: absolute; top: 0; left: 0; right: 0;
-    background: var(--danger); color: #fff;
-    font-size: 0.6rem; font-weight: 800;
-    letter-spacing: 1px; text-align: center;
-    padding: 2px 0;
-    z-index: 1;
-}
-.selector-card.broken .icon { opacity: 0.4; margin-top: 8px; }
-.selector-card.broken span { color: var(--danger) !important; }
+    </div>
 
-/* ─── SCHEDULE — coloana defectă ─────────────────────────────────────────────── */
-.machine-column-broken { background: rgba(217,79,58,.03); }
-.machine-header-broken {
-    background: var(--danger-light) !important;
-    color: var(--danger) !important;
-    border-bottom: 2px solid var(--danger) !important;
-}
-.broken-badge-header {
-    display: inline-block; font-size: 0.72rem;
-    font-weight: 800; letter-spacing: 0.3px;
-    color: var(--danger);
-}
-.time-slot.broken-slot {
-    background-color: rgba(217,79,58,.07);
-    background-image: repeating-linear-gradient(
-        45deg,
-        transparent,
-        transparent 6px,
-        rgba(217,79,58,.15) 6px,
-        rgba(217,79,58,.15) 12px
-    );
-    cursor: not-allowed;
-}
-.broken-slot-label {
-    font-size: 0.75rem; opacity: 0.5;
-    pointer-events: none; user-select: none;
-}
 
-/* ─── PRIMARY BUTTON ─────────────────────────────────────────────────────────── */
-.btn-primary {
-    width: 100%; padding: 11px 20px;
-    background: var(--accent); color: #fff;
-    border: none; border-radius: var(--radius);
-    font-weight: 600; font-size: 0.9rem; font-family: var(--font);
-    cursor: pointer;
-    display: flex; justify-content: center; align-items: center; gap: 8px;
-    transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
-    letter-spacing: 0.2px;
-}
-.btn-primary:hover { background: var(--accent-2); box-shadow: 0 4px 12px rgba(26,122,110,.25); transform: translateY(-1px); }
-.btn-primary:active { transform: translateY(0); }
-.btn-primary:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
 
-/* ─── BOOKING / UPCOMING LISTS ────────────────────────────────────────────────── */
-.list-container { padding: 10px; display: flex; flex-direction: column; gap: 6px; }
-.list-container.compact { padding: 8px 10px; }
-.booking-item {
-    display: flex; align-items: center; justify-content: space-between;
-    background: var(--bg);
-    border: 1px solid var(--border-soft);
-    border-radius: var(--radius); padding: 10px 12px; gap: 10px;
-    transition: border-color var(--transition);
-}
-.booking-item:hover { border-color: var(--border); }
-.booking-info { flex: 1; min-width: 0; }
-.booking-info strong {
-    display: block; font-weight: 600; font-size: 0.85rem; color: var(--text);
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.booking-info span { display: block; font-size: 0.78rem; color: var(--text-2); margin-top: 1px; }
-.btn-delete {
-    background: transparent; border: 1px solid var(--border); color: var(--text-3);
-    padding: 5px 10px; border-radius: var(--radius-sm);
-    font-size: 0.75rem; font-family: var(--font); font-weight: 500;
-    cursor: pointer; white-space: nowrap; transition: all var(--transition); flex-shrink: 0;
-}
-.btn-delete:hover { border-color: var(--danger); color: var(--danger); background: var(--danger-light); }
-.empty-state { text-align: center; padding: 24px 16px; color: var(--text-3); font-size: 0.85rem; }
-.delete-hint { font-size: 0.75rem; color: var(--text-3); margin-top: 8px; padding: 6px 10px; border-radius: 6px; background: var(--bg2); display: flex; align-items: center; gap: 6px; line-height: 1.4; }
+    <div class="app-container">
 
-/* ─── SCHEDULE ───────────────────────────────────────────────────────────────── */
-.schedule-container { min-height: 600px; display: flex; flex-direction: column; overflow: hidden; }
-.schedule-header {
-    padding: 14px 18px;
-    display: flex; justify-content: space-between; align-items: center;
-    background: var(--surface2); border-bottom: 1px solid var(--border-soft); flex-shrink: 0;
-}
-.schedule-header h2 { font-size: 0.9rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-.schedule-header h2 i { color: var(--accent); }
-.date-navigator {
-    display: flex; align-items: center; gap: 2px;
-    background: var(--bg); border: 1.5px solid var(--border);
-    border-radius: var(--radius); padding: 2px;
-}
-.nav-btn {
-    border: none; background: transparent; cursor: pointer;
-    padding: 5px 10px; color: var(--text-2);
-    border-radius: var(--radius-sm); transition: all var(--transition); font-size: 0.8rem;
-}
-.nav-btn:hover { background: var(--accent-light); color: var(--accent); }
-#currentDateDisplay {
-    font-weight: 600; font-size: 0.85rem;
-    min-width: 110px; text-align: center; color: var(--text); padding: 0 4px;
-}
-.schedule-grid {
-    display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr));
-    flex: 1; overflow-y: auto; overflow-x: auto; -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin; scrollbar-color: var(--border) var(--bg2);
-}
-.schedule-grid::-webkit-scrollbar { width: 5px; height: 5px; }
-.schedule-grid::-webkit-scrollbar-track { background: var(--bg2); }
-.schedule-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-.machine-column { background: var(--surface); border-right: 1px solid var(--border-soft); }
-.machine-column:last-child { border-right: none; }
-.machine-header {
-    padding: 10px 8px; text-align: center;
-    font-weight: 600; font-size: 0.82rem;
-    background: var(--surface2); border-bottom: 1px solid var(--border);
-    color: var(--text); position: sticky; top: 0; z-index: 10; line-height: 1.4;
-}
-.time-slot {
-    min-height: 44px; padding: 0 4px;
-    font-size: 0.78rem; color: var(--text-3);
-    border-bottom: 1px solid var(--border-soft);
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: background var(--transition), color var(--transition); font-weight: 500;
-}
-.time-slot.available:hover { background: var(--accent-light); color: var(--accent); font-weight: 600; }
-.time-slot.selected-slot {
-    background: var(--accent-mid); color: var(--accent-2); font-weight: 700;
-    outline: 2px solid var(--accent); outline-offset: -2px;
-}
-.time-slot.occupied {
-    background: var(--accent-mid);
-    border-bottom-color: var(--accent-light);
-    cursor: pointer;
-}
-.time-slot.occupied.booking-start {
-    background: var(--accent);
-    border-radius: var(--radius-sm) var(--radius-sm) 0 0; margin-top: 1px;
-}
-.time-slot.occupied.booking-end { border-radius: 0 0 var(--radius-sm) var(--radius-sm); margin-bottom: 1px; }
-.time-slot.occupied.booking-start.booking-end { border-radius: var(--radius-sm); margin: 1px; }
-.slot-content { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 3px; width: 100%; }
-.slot-time { font-size: 0.72rem; font-weight: 700; color: #fff; opacity: 0.92; }
-.slot-name { font-size: 0.75rem; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-.time-slot.booking-middle:not(.booking-start) .slot-content,
-.time-slot.booking-end:not(.booking-start) .slot-content { display: none; }
-.time-slot.occupied:not(.booking-start) .slot-time,
-.time-slot.occupied:not(.booking-start) .slot-name { display: none; }
+        <header class="main-header">
 
-/* ─── LIVE STATUS ────────────────────────────────────────────────────────────── */
-.live-status {
-    font-size: 0.7rem; font-weight: 600; margin-top: 4px;
-    padding: 2px 7px; border-radius: 20px; display: inline-block; letter-spacing: 0.2px;
-}
-.live-status.free { color: var(--success); background: var(--success-light); }
-.live-status.broken { color: var(--warn); background: var(--warn-light); }
+            <div class="header-content">
 
-/* ─── BUSY STATUS CU PROGRESS BAR ───────────────────────────────────────────── */
-.live-status.busy {
-    display: block; width: 100%; padding: 4px 8px 5px;
-    border-radius: 8px; background: var(--danger-light); color: var(--danger);
-    box-sizing: border-box;
-}
-.live-status.busy .busy-text {
-    display: block; font-size: 0.68rem; font-weight: 700;
-    letter-spacing: 0.2px; margin-bottom: 4px;
-}
-.live-status.busy .status-progress-track {
-    width: 100%; height: 4px; background: rgba(0,0,0,0.1);
-    border-radius: 2px; overflow: hidden;
-}
-.live-status.busy .status-progress-fill {
-    height: 100%; border-radius: 2px;
-    background: var(--danger);
-    transition: width 1s linear;
-}
+                <div class="logo-area">
 
-/* ─── SHIMMER / PULSE pe mașinile libere ─────────────────────────────────────── */
-@keyframes cardFreePulse {
-    0%   { box-shadow: 0 0 0 0 rgba(26,122,110,0.0); }
-    40%  { box-shadow: 0 0 0 5px rgba(26,122,110,0.18); }
-    100% { box-shadow: 0 0 0 0 rgba(26,122,110,0.0); }
-}
-.selector-card.card-free:not(.selected) {
-    animation: cardFreePulse 2.8s ease-in-out infinite;
-}
+                    <i class="fa-solid fa-soap fa-2x"></i>
 
-/* ─── CONFETTI ────────────────────────────────────────────────────────────────── */
-.confetti-container {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    pointer-events: none; z-index: 9999; overflow: hidden;
-}
-.confetti-piece {
-    position: absolute; width: 9px; height: 9px;
-    border-radius: 2px; opacity: 0;
-    animation: confettiFall linear forwards;
-}
-@keyframes confettiFall {
-    0%   { transform: translateY(-20px) rotate(0deg);   opacity: 1; }
-    80%  { opacity: 1; }
-    100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
-}
+                    <div>
+                        <h1 data-i18n="app_title">Spălătorie Cămin</h1>
+                        <p data-i18n="online_reservations">Rezervări Online</p>
+                        <small class="credit-tag" data-i18n="made_by">Made by Robert & Emi</small>
+                    </div>
 
-/* ─── ORE DE VÂRF ─────────────────────────────────────────────────────────────── */
-.peak-hours-card { }
-.peak-hours-bars {
-    display: flex; align-items: flex-end; gap: 3px;
-    height: 80px; margin-top: 12px; margin-bottom: 4px;
-}
-.peak-bar-wrap {
-    flex: 1; display: flex; flex-direction: column;
-    align-items: center; justify-content: flex-end;
-    cursor: default;
-}
-.peak-bar {
-    width: 100%; border-radius: 3px 3px 0 0;
-    transition: height 0.5s ease;
-    min-height: 3px;
-}
-.peak-bar.peak-high   { background: var(--danger); }
-.peak-bar.peak-medium { background: var(--warn); }
-.peak-bar.peak-low    { background: var(--success); opacity: 0.7; }
-.peak-hour-labels {
-    display: flex; gap: 3px; margin-top: 4px;
-}
-.peak-hour-label {
-    flex: 1; text-align: center;
-    font-size: 0.62rem; color: var(--text-3);
-    overflow: hidden; white-space: nowrap;
-}
-.peak-summary {
-    font-size: 0.82rem; color: var(--text-2);
-    margin-top: 10px; text-align: center;
-    line-height: 1.5; padding: 6px 10px;
-    background: var(--bg2); border-radius: 8px;
-}
+                </div>
 
-/* ─── FOOTER ─────────────────────────────────────────────────────────────────── */
-.app-footer { text-align: center; margin-top: 32px; color: var(--text-3); font-size: 0.78rem; }
+                <div class="header-actions">
+                    <span class="version-tag">Beta 6.0</span>
+                    <button type="button" id="langToggleBtn" class="btn-icon-only" title="Schimbă limba / Change language" aria-label="Schimbă limba (RO / EN)" style="font-weight: bold;">EN</button>
+                    <button id="themeToggleBtn" class="btn-icon-only" title="Schimbă Tema" aria-label="Schimbă tema (întunecat / deschis)">
+                        <i class="fa-solid fa-moon" aria-hidden="true"></i>
+                    </button>
+                    <button id="adminToggleBtn" class="btn-icon-only" title="Admin Login" aria-label="Deschide panoul administrator">
+                        <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                    </button>
+                </div>
 
-/* ─── MODAL ──────────────────────────────────────────────────────────────────── */
-.modal-overlay {
-    position: fixed; inset: 0;
-    background: rgba(28,25,22,.5);
-    z-index: 3000;
-    display: none; justify-content: center; align-items: center;
-    padding: 20px; backdrop-filter: blur(4px);
-}
-.modal-box {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: var(--radius-xl); padding: 28px;
-    width: 100%; max-width: 420px;
-    box-shadow: var(--shadow-lg); position: relative;
-    animation: modalIn 0.2s cubic-bezier(.34,1.56,.64,1);
-}
-@keyframes modalIn { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-.modal-close {
-    position: absolute; top: 16px; right: 16px;
-    background: var(--bg2); border: 1px solid var(--border); color: var(--text-2);
-    width: 30px; height: 30px; border-radius: 50%; font-size: 1rem; line-height: 1;
-    cursor: pointer; display: flex; align-items: center; justify-content: center;
-    transition: all var(--transition);
-}
-.modal-close:hover { background: var(--danger-light); border-color: var(--danger); color: var(--danger); }
-.modal-box h3 {
-    font-size: 1.05rem; font-weight: 700; color: var(--text);
-    margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
-}
-.modal-box h3 i { color: var(--accent); }
-.modal-box p { color: var(--text-2); font-size: 0.9rem; margin-bottom: 16px; line-height: 1.6; }
-.modal-body { text-align: center; }
-.modal-body h4 { font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
-.phone-display { font-size: 1.3rem; font-weight: 700; color: var(--accent); margin-bottom: 18px !important; letter-spacing: 0.5px; }
-.modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
-.btn-action {
-    padding: 10px 14px; border-radius: var(--radius);
-    font-size: 0.85rem; font-weight: 600; font-family: var(--font);
-    cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
-    text-decoration: none; border: 1.5px solid var(--border);
-    background: var(--bg); color: var(--text); transition: all var(--transition);
-}
-.btn-action:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
-.btn-action.call { border-color: var(--success); color: var(--success); background: var(--success-light); }
-.btn-action.call:hover { background: var(--success); color: #fff; border-color: var(--success); }
-.btn-action.delete { border-color: var(--danger); color: var(--danger); background: var(--danger-light); }
-.btn-action.delete:hover { background: var(--danger); color: #fff; }
-.btn-action.secondary { color: var(--text-2); }
-.full-width-input {
-    width: 100%; margin: 14px 0;
-    text-align: center; font-size: 1.5rem !important; letter-spacing: 8px;
-    padding: 12px !important; font-family: var(--font) !important;
-    background: var(--bg) !important; color: var(--text) !important;
-    border: 2px solid var(--border) !important; border-radius: var(--radius) !important;
-}
-.full-width-input:focus { border-color: var(--accent) !important; outline: none !important; }
+            </div>
 
-/* ─── SUCCESS MODAL ──────────────────────────────────────────────────────────── */
-.success-modal { text-align: center; }
-.success-modal-icon { font-size: 3rem; color: var(--success); margin-bottom: 8px; display: block; animation: popIn 0.4s cubic-bezier(.175,.885,.32,1.275); }
-@keyframes popIn { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-.success-modal h3 { font-size: 1.15rem; color: var(--success); margin-bottom: 18px; justify-content: center; }
-.success-details {
-    background: var(--bg); border: 1px solid var(--border-soft);
-    border-radius: var(--radius); padding: 14px 16px;
-    text-align: left; display: flex; flex-direction: column; gap: 10px;
-}
-.success-row { display: flex; align-items: center; gap: 12px; font-size: 0.875rem; }
-.success-label { color: var(--accent); width: 18px; text-align: center; flex-shrink: 0; }
-.success-value { font-weight: 600; color: var(--text); }
+        </header>
 
-/* ─── TOAST ──────────────────────────────────────────────────────────────────── */
-.toast {
-    position: fixed; bottom: 24px; left: 50%;
-    transform: translateX(-50%) translateY(80px);
-    background: var(--text); color: var(--bg);
-    padding: 10px 20px; border-radius: 20px;
-    font-size: 0.875rem; font-weight: 500; font-family: var(--font);
-    z-index: 9999; opacity: 0;
-    transition: transform 0.3s cubic-bezier(.34,1.56,.64,1), opacity 0.3s;
-    white-space: nowrap; max-width: 90vw; text-align: center;
-    box-shadow: var(--shadow-lg);
-}
-.toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
-.toast.error { background: var(--danger); color: #fff; }
-.toast.success { background: var(--success); color: #fff; }
 
-/* ─── SWITCH TOGGLE ──────────────────────────────────────────────────────────── */
-.switch { position: relative; display: inline-block; width: 42px; height: 24px; }
-.switch input { opacity: 0; width: 0; height: 0; }
-.slider { position: absolute; inset: 0; background: var(--border); cursor: pointer; transition: 0.3s; }
-.slider:before {
-    content: ""; position: absolute;
-    width: 18px; height: 18px; left: 3px; top: 3px;
-    background: white; transition: 0.3s; box-shadow: 0 1px 3px rgba(0,0,0,.2);
-}
-.slider.round { border-radius: 24px; }
-.slider.round:before { border-radius: 50%; }
-input:checked + .slider { background: var(--accent); }
-input:checked + .slider:before { transform: translateX(18px); }
 
-/* ─── HIGHLIGHT PULSE ────────────────────────────────────────────────────────── */
-@keyframes highlightPulse { 0% { box-shadow: 0 0 0 0 rgba(26,122,110,.4); } 60% { box-shadow: 0 0 0 8px rgba(26,122,110,.0); } 100% { box-shadow: 0 0 0 0 rgba(26,122,110,.0); } }
-.booking-card.highlight-pulse { animation: highlightPulse 0.8s ease; }
+        <main class="main-layout">
 
-/* ─── ADMIN MODAL ────────────────────────────────────────────────────────────── */
-#adminModal {
-    max-width: 560px; max-height: 88vh; overflow-y: auto;
-    background: #1A1512; border: 1px solid #2E2920; color: #E8E0D5;
-    scrollbar-width: thin; scrollbar-color: #3A342C #1A1512;
-}
-#adminModal::-webkit-scrollbar { width: 5px; }
-#adminModal::-webkit-scrollbar-track { background: #1A1512; }
-#adminModal::-webkit-scrollbar-thumb { background: #3A342C; border-radius: 3px; }
-#adminModal .modal-close { background: #2E2920; border-color: #3A342C; color: #9E9288; }
-#adminModal .modal-close:hover { background: #3D1A15; border-color: #F06B56; color: #F06B56; }
+            <aside class="sidebar">
 
-#adminLoginForm h3 { color: #E8A040; }
-#adminLoginForm h3 i { color: #E8A040; }
-#adminLoginForm input {
-    background: #241F19; border: 1.5px solid #3A342C; color: #E8E0D5;
-    border-radius: var(--radius); width: 100%; padding: 10px 12px;
-    font-family: var(--font); font-size: 0.9rem; margin-bottom: 10px;
-    transition: border-color var(--transition); display: block; appearance: none;
-}
-#adminLoginForm input:focus { outline: none; border-color: #E8A040; box-shadow: 0 0 0 3px rgba(232,160,64,.12); }
-#adminLoginForm .btn-primary { background: #E8A040; margin-top: 5px; }
-#adminLoginForm .btn-primary:hover { background: #C97A1A; box-shadow: 0 4px 12px rgba(232,160,64,.3); }
+                <section class="card booking-card">
 
-.admin-dashboard { color: #E8E0D5; }
-.dashboard-header {
-    display: flex; justify-content: space-between; align-items: flex-start;
-    margin-bottom: 24px; border-bottom: 1px solid #2E2920; padding-bottom: 16px;
-}
-.header-title h2 { color: #E8A040; font-size: 1.2rem; margin-bottom: 3px; display: flex; align-items: center; gap: 10px; }
-.subtitle { font-size: 0.82rem; color: #6A6058; }
-.btn-logout {
-    background: rgba(240,107,86,.1); color: #F06B56; border: 1px solid rgba(240,107,86,.25);
-    width: 36px; height: 36px; border-radius: var(--radius); cursor: pointer;
-    transition: all var(--transition); display: flex; align-items: center; justify-content: center; font-size: 0.9rem;
-}
-.btn-logout:hover { background: #F06B56; color: white; }
+                    <div class="card-header">
 
-.stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
-.stat-card {
-    background: #241F19; border: 1px solid #2E2920; border-radius: var(--radius);
-    padding: 16px; display: flex; align-items: center; gap: 14px; transition: border-color var(--transition);
-}
-.stat-card:hover { border-color: #3A342C; }
-.stat-icon { width: 42px; height: 42px; background: rgba(232,160,64,.12); color: #E8A040; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: 1rem; flex-shrink: 0; }
-.stat-label { font-size: 0.72rem; color: #6A6058; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; display: block; }
-.stat-value { font-size: 1.4rem; color: #E8E0D5; font-weight: 700; line-height: 1.2; display: block; }
-.maintenance-card { flex-direction: column; align-items: flex-start; gap: 8px; background: linear-gradient(145deg, #241F19 0%, #1A1512 100%); }
-.maintenance-header { display: flex; justify-content: space-between; width: 100%; align-items: center; }
-.status-text { font-size: 0.8rem; color: #4DB890; font-weight: 500; }
-.status-text.offline { color: #E8A040; }
+                        <h2><i class="fa-regular fa-calendar-plus"></i> <span data-i18n="new_reservation">Rezervare Nouă</span></h2>
 
-.admin-tabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 1px solid #2E2920; }
-.tab-btn {
-    background: transparent; border: none; color: #6A6058;
-    padding: 9px 18px; cursor: pointer; font-size: 0.875rem; font-weight: 600;
-    font-family: var(--font); border-bottom: 2px solid transparent; transition: all var(--transition); margin-bottom: -1px;
-}
-.tab-btn:hover { color: #E8E0D5; }
-.tab-btn.active { color: #E8A040; border-bottom-color: #E8A040; }
+                    </div>
 
-.list-controls { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
-.search-wrapper { flex: 1; min-width: 180px; position: relative; background: #241F19; border: 1.5px solid #2E2920; border-radius: var(--radius); }
-.search-wrapper:focus-within { border-color: #E8A040; }
-.search-wrapper i { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #6A6058; font-size: 0.8rem; }
-.search-wrapper input { background: transparent; border: none; color: #E8E0D5; padding: 9px 10px 9px 33px; width: 100%; font-family: var(--font); font-size: 0.875rem; }
-.search-wrapper input:focus { box-shadow: none; border: none; background: transparent; }
-.filter-wrapper input[type="date"] { background: #241F19; border: 1.5px solid #2E2920; color: #E8E0D5; color-scheme: dark; padding: 8px 10px; border-radius: var(--radius); font-family: var(--font); font-size: 0.875rem; }
-.filter-wrapper input[type="date"]:focus { outline: none; border-color: #E8A040; }
+                    <form id="bookingForm">
 
-#adminContent .btn-ghost { background: transparent; color: #4DB890; border-color: rgba(77,184,144,.3); font-size: 0.82rem; width: 100%; justify-content: center; margin-bottom: 8px; }
-#adminContent .btn-ghost:hover { background: rgba(77,184,144,.1); border-color: #4DB890; color: #4DB890; }
-#exportPdfBtn { color: #F06B56 !important; border-color: rgba(240,107,86,.3) !important; margin-bottom: 14px !important; }
-#exportPdfBtn:hover { background: rgba(240,107,86,.1) !important; border-color: #F06B56 !important; }
+                        <div class="form-group">
 
-#adminContent #brokenMachinesSection,
-#adminContent #histogramSection { margin-bottom: 14px; padding: 14px; background: #241F19; border-radius: var(--radius); border: 1px solid #2E2920; }
+                            <label for="userName" data-i18n="name_room">Nume și Cameră</label>
 
-.list-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.list-header h3 { font-size: 0.95rem; color: #E8E0D5; font-weight: 600; }
-.list-badge { background: #2E2920; color: #9E9288; padding: 2px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 700; }
+                            <div class="input-wrapper">
 
-.admin-bookings-list { max-height: 380px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px; scrollbar-width: thin; scrollbar-color: #3A342C #1A1512; }
-.admin-bookings-list::-webkit-scrollbar { width: 5px; }
-.admin-bookings-list::-webkit-scrollbar-track { background: #1A1512; }
-.admin-bookings-list::-webkit-scrollbar-thumb { background: #3A342C; border-radius: 3px; }
+                                <i class="fa-solid fa-user"></i>
 
-.admin-list-item { background: #241F19; border: 1px solid #2E2920; padding: 12px 14px; border-radius: var(--radius); display: flex; justify-content: space-between; align-items: center; gap: 10px; transition: border-color var(--transition); }
-.admin-list-item:hover { border-color: #3A342C; }
-.admin-item-info strong { color: #E8E0D5; display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 4px; }
-.admin-item-info span { color: #6A6058; font-size: 0.8rem; display: flex; align-items: center; gap: 6px; margin-top: 1px; }
-.admin-item-info i { color: #E8A040; font-size: 0.75rem; }
+                                <input type="text" id="userName" required placeholder="Ex: Popescu (304)" data-i18n-placeholder="name_placeholder" autocomplete="off">
 
-.btn-delete-vip { background: transparent; border: 1px solid rgba(240,107,86,.35); color: #F06B56; width: 34px; height: 34px; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all var(--transition); }
-.btn-delete-vip:hover { background: #F06B56; color: white; border-color: #F06B56; }
+                            </div>
 
-.btn-logout-full { width: 100%; margin-top: 20px; padding: 11px; background: transparent; border: 1.5px solid rgba(240,107,86,.3); color: #F06B56; border-radius: var(--radius); font-family: var(--font); font-weight: 600; font-size: 0.875rem; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; transition: all var(--transition); }
-.btn-logout-full:hover { background: #F06B56; color: white; border-color: #F06B56; }
+                        </div>
 
-body.admin-mode #confirmModal { background: #241F19; border-color: #2E2920; color: #E8E0D5; }
-body.admin-mode #confirmModal h3 { color: #E8A040; }
-body.admin-mode #confirmModal p { color: #9E9288; }
+                        <div class="form-group">
 
-/* ─── RESPONSIVE ─────────────────────────────────────────────────────────────── */
-@media (max-width: 900px) {
-    .main-layout { grid-template-columns: 1fr; }
-    .schedule-container { min-height: 400px; }
-}
-@media (max-width: 600px) {
-    .app-container { padding: 12px; }
-    .main-header { padding: 12px 14px; }
-    .header-content { flex-direction: column; gap: 12px; }
-    .header-actions { width: 100%; justify-content: center; }
-    .logo-area { width: 100%; justify-content: center; text-align: center; }
-    .stats-grid { grid-template-columns: 1fr; }
-    #adminModal { position: fixed; inset: 0; max-width: 100%; max-height: 100%; border-radius: 0; overflow-y: auto; }
-    .admin-bookings-list { max-height: none; overflow: visible; }
-    .filter-wrapper { width: 100%; }
-    .filter-wrapper input[type="date"] { width: 100%; }
+                            <label for="userPin" data-i18n="secret_pin">PIN Secret (4 cifre)</label>
 
-    /* ─── Selector cards: status mai compact pe mobil ────────────────────── */
-    .selector-card {
-        padding: 10px 6px;
-    }
-    .selector-card .icon { font-size: 1.3rem; margin-bottom: 2px; }
-    .selector-card span { font-size: 0.72rem; }
-    .live-status.busy .busy-text { font-size: 0.62rem; }
-    .live-status.busy { padding: 3px 6px 4px; }
+                            <div class="input-wrapper">
 
-    /* ─── Peak hours: înălțime OK și pe mobil ───────────────────────────── */
-    .peak-hours-bars { height: 70px; gap: 2px; }
-    .peak-hour-label { font-size: 0.6rem; }
-    .peak-summary { font-size: 0.78rem; }
+                                <i class="fa-solid fa-key"></i>
 
-    /* ─── Schedule grid: scroll orizontal clar pe mobil ─────────────────── */
-    .schedule-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .schedule-grid { min-width: 480px; }
+                                <input type="text" id="userPin" required placeholder="Ex: 1234" data-i18n-placeholder="pin_placeholder" maxlength="4" pattern="\d{4}" title="Introdu exact 4 cifre" data-i18n-title="pin_4_digits_err" autocomplete="off">
 
-    /* ─── Modal: padding mai mic pe ecrane mici ──────────────────────────── */
-    .modal-box { padding: 20px 16px; }
-    .modal-overlay { padding: 12px; }
-}
-@media (max-width: 380px) {
-    .form-row { grid-template-columns: 1fr; }
-    .visual-selector { grid-template-columns: repeat(2, 1fr); gap: 6px; }
-    .peak-hours-bars { height: 60px; }
-}
+                            </div>
+                            <small style="font-size: 0.75rem; color: var(--text-2); display: block; margin-top: 4px;" data-i18n="pin_helper">Vei folosi acest cod pentru a șterge rezervarea.</small>
+
+                        </div>
+
+
+
+                        <div class="form-group">
+
+                            <label for="phoneNumber" data-i18n="phone">Telefon</label>
+
+                            <div class="input-wrapper">
+
+                                <i class="fa-solid fa-phone"></i>
+
+                                <input type="tel" id="phoneNumber" placeholder="07xx xxx xxx" data-i18n-placeholder="phone_placeholder" maxlength="10" pattern="07[0-9]{8}" inputmode="numeric" title="10 cifre, începând cu 07" data-i18n-title="invalid_phone_err" autocomplete="tel">
+
+                            </div>
+
+                            <div class="gdpr-consent-wrapper" style="margin-top: 8px; display: flex; align-items: start; gap: 8px;">
+                                <input type="checkbox" id="skipPhone">
+                                <label for="skipPhone" style="font-size: 0.9rem; line-height: 1.4; color: var(--text-2); cursor: pointer;">
+                                    <span data-i18n="skip_phone">Nu doresc să introduc numărul de telefon.</span>
+                                </label>
+                            </div>
+
+                            <div class="privacy-note" style="background: var(--accent-light); border-left: 3px solid var(--accent); padding: 10px; margin-top: 10px; border-radius: 4px; font-size: 0.85rem; color: var(--text);">
+                                <p style="margin-bottom: 5px;"><strong data-i18n="privacy_note">Notă Confidențialitate:</strong> <span data-i18n="privacy_desc1">Datele sunt folosite doar pentru organizarea programului și pentru contact în caz de probleme.</span></p>
+                                <p><span data-i18n="privacy_desc2">Dacă nu dorești să introduci date personale, completează cel puțin un nume pentru rezervare și folosește varianta oficială pentru restul (foaia de jos).</span></p>
+                            </div>
+
+                        </div>
+
+
+
+                        <div class="form-group">
+                            <label data-i18n="equipment">Echipament</label>
+                            <div class="visual-selector" id="visualSelector">
+                                <div class="selector-card" data-value="masina1">
+                                    <div class="icon">🧺</div>
+                                    <span data-i18n="machine1">Mașina 1</span>
+                                    <div class="live-status" id="status-masina1">...</div>
+                                </div>
+                                <div class="selector-card" data-value="masina2">
+                                    <div class="icon">🧺</div>
+                                    <span data-i18n="machine2">Mașina 2</span>
+                                    <div class="live-status" id="status-masina2">...</div>
+                                </div>
+                                <div class="selector-card" data-value="uscator1">
+                                    <div class="icon">🌬️</div>
+                                    <span data-i18n="dryer1">Uscător 1</span>
+                                    <div class="live-status" id="status-uscator1">...</div>
+                                </div>
+                                <div class="selector-card" data-value="uscator2">
+                                    <div class="icon">🌬️</div>
+                                    <span data-i18n="dryer2">Uscător 2</span>
+                                    <div class="live-status" id="status-uscator2">...</div>
+                                </div>
+                            </div>
+                            <!-- Hidden select for compatibility with existing logic -->
+                            <select id="machineType" required style="display:none; opacity:0; height:1px;">
+                                <option value="">Selectat</option>
+                                <option value="masina1" data-i18n="machine1">Mașină 1</option>
+                                <option value="masina2" data-i18n="machine2">Mașină 2</option>
+                                <option value="uscator1" data-i18n="dryer1">Uscător 1</option>
+                                <option value="uscator2" data-i18n="dryer2">Uscător 2</option>
+                            </select>
+                        </div>
+
+
+
+                        <div class="form-row">
+
+                            <div class="form-group">
+
+                                <label for="bookingDate" data-i18n="date">Data</label>
+
+                                <input type="date" id="bookingDate" required>
+
+                            </div>
+
+                            <div class="form-group">
+
+                                <label for="duration" data-i18n="duration">Durată</label>
+
+                                <select id="duration" required>
+                                    
+                                    <option value="30">30 min</option>
+
+                                    <option value="60">60 min</option>
+
+                                    <option value="90">90 min</option>
+
+                                </select>
+
+                            </div>
+
+                        </div>
+
+
+
+                        <div class="form-group">
+
+                            <label for="startTime" data-i18n="start_time">Ora de început</label>
+
+                            <input type="time" id="startTime" required class="time-input">
+
+                        </div>
+                        <button type="submit" class="btn-primary">
+
+                            <i class="fa-solid fa-check"></i> <span data-i18n="book_now">Rezervă Acum</span>
+
+                        </button>
+
+                    </form>
+
+                </section>
+
+
+
+                <section class="card">
+
+                    <div class="card-header">
+
+                        <h2><i class="fa-solid fa-list-check"></i> <span data-i18n="my_bookings">Rezervările Mele</span></h2>
+
+                    </div>
+
+                    <div id="myBookings" class="list-container"></div>
+
+                </section>
+
+                
+
+                <section class="card">
+
+                    <div class="card-header">
+
+                        <h2><i class="fa-solid fa-calendar-week"></i> <span data-i18n="upcoming_days">Zilele Următoare</span></h2>
+
+                    </div>
+
+                    <div id="upcomingBookings" class="list-container compact"></div>
+
+                </section>
+
+                <section class="card peak-hours-card">
+
+                    <div class="card-header">
+
+                        <h2><i class="fa-solid fa-fire-flame-curved"></i> <span data-i18n="peak_hours_title">Ore de Vârf</span></h2>
+
+                    </div>
+
+                    <div id="peakHoursContainer"></div>
+
+                </section>
+
+            </aside>
+
+
+
+            <section class="card schedule-container">
+
+                <div class="schedule-header">
+
+                    <h2><i class="fa-regular fa-clock"></i> <span data-i18n="schedule_24h">Orar (24h)</span></h2>
+
+                    <div class="date-navigator">
+
+                        <button type="button" id="prevDay" class="nav-btn"><i class="fa-solid fa-chevron-left"></i></button>
+
+                        <span id="currentDateDisplay">Azi</span>
+
+                        <button type="button" id="nextDay" class="nav-btn"><i class="fa-solid fa-chevron-right"></i></button>
+
+                    </div>
+
+                </div>
+
+                <div id="scheduleGrid" class="schedule-grid"></div>
+
+            </section>
+
+        </main>
+
+        
+
+        <footer class="app-footer">
+
+            <p>&copy; 2026 Spalatorie Cămin.</p>
+
+        </footer>
+
+    </div>
+
+
+
+    <div id="modalOverlay" class="modal-overlay">
+
+        <div id="phoneModal" class="modal-box" style="display:none;">
+
+            <button type="button" class="modal-close" aria-label="Închide">&times;</button>
+
+            <h3><i class="fa-solid fa-address-card"></i> <span data-i18n="contact">Contact</span></h3>
+
+            <div class="modal-body text-center">
+
+                <h4 id="modalUserName">Nume</h4>
+
+                <p id="modalPhoneNumber" class="phone-display">07xx...</p>
+
+                <div class="modal-actions" style="grid-template-columns: 1fr 1fr 1fr;">
+                    <a id="callPhoneBtn" href="#" class="btn-action call"><i class="fa-solid fa-phone"></i> <span data-i18n="call_now">Sună Acum</span></a>
+                    <button id="copyPhoneBtn" class="btn-action copy"><i class="fa-solid fa-copy"></i> <span data-i18n="copy">Copie</span></button>
+                    <button id="requestDeleteBtn" class="btn-action delete"><i class="fa-solid fa-trash"></i> <span data-i18n="delete">Șterge</span></button>
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+        <div id="confirmModal" class="modal-box" style="display: none;">
+
+            <h3><i class="fa-solid fa-triangle-exclamation"></i> <span data-i18n="confirmation">Confirmare</span></h3>
+
+            <p data-i18n="confirm_delete_msg">Ești sigur că vrei să ștergi această rezervare?</p>
+
+            <div class="modal-actions">
+
+                <button id="cancelDeleteBtn" class="btn-action secondary" data-i18n="no_cancel">Nu, renunț</button>
+
+                <button id="confirmDeleteBtn" class="btn-action delete" data-i18n="yes_delete">Da, șterge</button>
+
+            </div>
+
+        </div>
+
+        <div id="deletePinModal" class="modal-box" style="display: none;">
+            <button type="button" class="modal-close" aria-label="Închide">&times;</button>
+            <h3><i class="fa-solid fa-lock"></i> <span data-i18n="delete_title">Ștergere</span></h3>
+            <p data-i18n="delete_pin_msg">Introdu codul PIN (4 cifre) setat la rezervare:</p>
+            <input type="password" id="deletePinInput" placeholder="PIN..." class="full-width-input" maxlength="4" style="text-align: center; font-size: 1.5rem; letter-spacing: 5px;">
+            <div class="modal-actions">
+                <button id="cancelPinDeleteBtn" class="btn-action secondary" data-i18n="cancel">Anulează</button>
+                <button id="confirmPinDeleteBtn" class="btn-action delete" data-i18n="delete">Șterge</button>
+            </div>
+        </div>
+
+
+
+        <div id="adminModal" class="modal-box">
+
+            <button type="button" class="modal-close" aria-label="Închide">&times;</button>
+
+            <div id="adminLoginForm">
+
+                <h3><i class="fa-solid fa-user-shield"></i> <span data-i18n="admin">Admin</span></h3>
+
+                <input type="email" id="adminEmail" placeholder="Email Admin" data-i18n-placeholder="admin_email" style="margin-bottom: 10px; width: 100%; padding: 10px; border:1px solid #ddd; border-radius:6px;">
+                <input type="password" id="adminPassword" placeholder="Parola Admin" data-i18n-placeholder="admin_password" style="margin-bottom: 15px; width: 100%; padding: 10px; border:1px solid #ddd; border-radius:6px;">
+
+                <button type="button" id="adminLoginBtn" class="btn-primary"><i class="fa-solid fa-right-to-bracket"></i> <span data-i18n="login">Conectare</span></button>
+
+            </div>
+
+            
+
+            <div id="adminContent" style="display: none;" class="admin-dashboard">
+                <div class="dashboard-header">
+                    <div class="header-title">
+                        <h2><i class="fa-solid fa-user-shield"></i> <span data-i18n="admin_panel">Panou Admin</span></h2>
+                        <p class="subtitle" data-i18n="management_stats">Gestionare & Statistici</p>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fa-solid fa-calendar-check"></i></div>
+                        <div class="stat-data">
+                            <span class="stat-label" data-i18n="bookings_today">Rezervări Azi</span>
+                            <strong class="stat-value" id="statToday">0</strong>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="fa-solid fa-list-ol"></i></div>
+                        <div class="stat-data">
+                            <span class="stat-label" data-i18n="total_active">Total Active</span>
+                            <strong class="stat-value" id="statTotal">0</strong>
+                        </div>
+                    </div>
+                    <div class="stat-card maintenance-card">
+                        <div class="maintenance-header">
+                            <span class="stat-label" data-i18n="maintenance">Mentenanță</span>
+                            <label class="switch vip-switch">
+                                <input type="checkbox" id="maintenanceToggle">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <small id="maintenanceStatusLabel" class="status-text" data-i18n="system_online">Sistem Online</small>
+                    </div>
+                </div>
+
+                <div class="admin-tabs">
+                    <button class="tab-btn active" id="tabActive" data-i18n="active">Active</button>
+                    <button class="tab-btn" id="tabHistory" data-i18n="history">Istoric</button>
+                </div>
+
+                <div class="list-controls">
+                    <div class="search-wrapper">
+                        <i class="fa-solid fa-search"></i>
+                        <input type="text" id="adminSearchInput" placeholder="Caută nume sau telefon..." data-i18n-placeholder="search_placeholder">
+                    </div>
+                    <div class="filter-wrapper">
+                         <input type="date" id="adminDateFilter" title="Filtrează după dată">
+                    </div>
+                </div>
+
+                <button id="exportCsvBtn" class="btn-ghost" style="width:100%; margin-bottom:8px; border-color:var(--success); color:var(--success);">
+                    <i class="fa-solid fa-file-csv"></i> <span data-i18n="download_csv">Descarcă Raport Excel (CSV)</span>
+                </button>
+                <button id="exportPdfBtn" class="btn-ghost" style="width:100%; margin-bottom:15px; border-color:#e11d48; color:#e11d48;">
+                    <i class="fa-solid fa-file-pdf"></i> <span data-i18n="download_pdf">Descarcă Raport PDF</span>
+                </button>
+
+                <div id="brokenMachinesSection" style="margin-bottom:16px;padding:14px;background:var(--bg2);border-radius:10px;border:1px solid var(--border);"></div>
+                <div id="histogramSection" style="margin-bottom:16px;padding:14px;background:var(--bg2);border-radius:10px;border:1px solid var(--border);"></div>
+
+                <div class="list-header">
+                    <h3 id="listTitle" data-i18n="active_bookings">Rezervări Active</h3>
+                    <div class="list-badge" id="listBadgeCount">0</div>
+                </div>
+
+                <div id="adminBookingsList" class="admin-bookings-list">
+                    <!-- Content injected by JS -->
+                </div>
+
+                <button id="adminLogoutBtn" class="btn-logout-full">
+                    <i class="fa-solid fa-power-off"></i> <span data-i18n="logout">Deconectare</span>
+                </button>
+            </div>
+
+        </div>
+
+        <!-- Success Modal -->
+        <div id="successModal" class="modal-box success-modal" style="display:none;">
+            <button type="button" class="modal-close" aria-label="Închide">&times;</button>
+            <div class="success-modal-icon">
+                <i class="fa-solid fa-circle-check"></i>
+            </div>
+            <h3 data-i18n="booking_confirmed">Rezervare Confirmată!</h3>
+            <div class="success-details">
+                <div class="success-row">
+                    <span class="success-label"><i class="fa-solid fa-soap"></i></span>
+                    <span id="successMachine" class="success-value">—</span>
+                </div>
+                <div class="success-row">
+                    <span class="success-label"><i class="fa-regular fa-calendar"></i></span>
+                    <span id="successDate" class="success-value">—</span>
+                </div>
+                <div class="success-row">
+                    <span class="success-label"><i class="fa-regular fa-clock"></i></span>
+                    <span id="successTime" class="success-value">—</span>
+                </div>
+                <div class="success-row">
+                    <span class="success-label"><i class="fa-solid fa-hourglass-half"></i></span>
+                    <span id="successDuration" class="success-value">—</span>
+                </div>
+                <div class="success-row">
+                    <span class="success-label"><i class="fa-solid fa-user"></i></span>
+                    <span id="successName" class="success-value">—</span>
+                </div>
+            </div>
+            <button id="successModalCloseBtn" class="btn-primary" style="width:100%;margin-top:16px;">
+                <i class="fa-solid fa-check"></i> <span data-i18n="ok_close">OK, Închide</span>
+            </button>
+        </div>
+
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+
+
+    <script type="module" src="script.js"></script>
+
+</body>
+
+
+</html>
