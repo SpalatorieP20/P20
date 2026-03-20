@@ -233,13 +233,6 @@ export const ui = {
             };
         });
 
-        document.getElementById('userName').oninput = () => this.renderMyBookings();
-
-        document.getElementById('myBookings').addEventListener('click', (e) => {
-            const btn = e.target.closest('.btn-delete');
-            if (btn?.dataset.deleteId) this.requestDelete(btn.dataset.deleteId);
-        });
-
         document.getElementById('adminContent').addEventListener('click', (e) => {
             const del = e.target.closest('.btn-delete-vip');
             if (del?.dataset.deleteId) this.confirmDelete(del.dataset.deleteId);
@@ -578,7 +571,7 @@ export const ui = {
     },
 
     renderAll() {
-        this.renderSchedule(); this.renderMyBookings(); this.renderUpcoming(); this.updateMachineStatus(); this.renderPeakHours();
+        this.renderSchedule(); this.renderUpcoming(); this.updateMachineStatus(); this.renderPeakHours();
         if (document.getElementById('adminContent').style.display === 'block') this.renderAdminDashboard();
     },
 
@@ -751,17 +744,6 @@ export const ui = {
         document.getElementById('phoneModal').style.display = 'none';
         document.getElementById('adminModal').style.display = 'none';
         document.getElementById('confirmModal').style.display = 'block';
-    },
-
-    renderMyBookings() {
-        const container = document.getElementById('myBookings');
-        const currentUser = document.getElementById('userName').value.trim().toLowerCase();
-        if (!currentUser) { container.innerHTML = `<div class="empty-state">${i18n.t("enter_name_to_see_bookings")}</div>`; return; }
-        const bookings = localBookings.filter(b => b.userName.toLowerCase() === currentUser).sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
-        container.innerHTML = bookings.length ? bookings.map(b => {
-            const end = utils.minsToTime(utils.timeToMins(b.startTime) + parseInt(b.duration));
-            return `<div class="booking-item"><div class="booking-info"><strong>${utils.escapeHtml(i18n.t(utils.getMachineKey(b.machineType)))}</strong><span>${utils.escapeHtml(utils.formatDateRO(b.date))} • ${utils.escapeHtml(b.startTime)} - ${utils.escapeHtml(end)}</span></div></div>`;
-        }).join('') + `<p class="delete-hint"><i class="fa-solid fa-circle-info"></i> ${i18n.t('delete_hint')}</p><p class="delete-hint" style="margin-top:4px;"><i class="fa-solid fa-phone"></i> ${i18n.t('call_hint')}</p>` : `<div class="empty-state">${i18n.t("no_bookings_found")}</div>`;
     },
 
     // ─── ORE DE VÂRF ──────────────────────────────────────────────────────────
